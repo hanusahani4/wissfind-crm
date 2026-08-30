@@ -1,0 +1,22 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:mysql://gateway01.us-east-1.prod.aws.tidbcloud.com:4000/wissfind?useSSL=true&requireSSL=true&serverTimezone=Asia/Kolkata
+    username: oUxEUUYLQY8gA2A.root
+    password: N47JhKnuvs9q7k9d
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+app:
+  dev:
+    test-users: true
+  otp:
+    expose-dev: true

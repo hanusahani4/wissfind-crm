@@ -1,0 +1,30 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: wissfind-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wissfind
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - wissfind_mysql:/var/lib/mysql
+
+  backend:
+    build: .
+    container_name: wissfind-backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/wissfind?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      JWT_SECRET: change-this-development-secret-key-at-least-32-bytes-long
+      OTP_EXPOSE_DEV: "false"
+    ports:
+      - "8080:8080"
+
+volumes:
+  wissfind_mysql:

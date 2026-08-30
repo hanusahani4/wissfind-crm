@@ -1,0 +1,3 @@
+package com.wissfind.marketplace.entity;
+import jakarta.persistence.*; import java.math.BigDecimal;
+@Entity @Table(name="return_requests", uniqueConstraints=@UniqueConstraint(name="uk_return_order",columnNames="order_id")) public class ReturnRequest extends BaseEntity { @ManyToOne(optional=false) public Order order; @ManyToOne(optional=false) public User customer; public String reason; @Enumerated(EnumType.STRING) public RequestType requestType=RequestType.RETURN; @Enumerated(EnumType.STRING) public Status status=Status.REQUESTED; public BigDecimal refundAmount; public enum RequestType { RETURN, CANCELLATION } public enum Status { REQUESTED,APPROVED,PICKUP_SCHEDULED,PICKED_UP,REFUND_INITIATED,REFUND_COMPLETED,REJECTED } }

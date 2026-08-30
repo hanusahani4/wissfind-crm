@@ -1,0 +1,2 @@
+package com.wissfind.marketplace.controller; import com.wissfind.marketplace.entity.*; import com.wissfind.marketplace.repo.*; import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.web.bind.annotation.*; import java.util.*;
+@RestController @RequestMapping("/api/commissions") public class CommissionController {final CommissionRepository r;public CommissionController(CommissionRepository r){this.r=r;} @GetMapping @PreAuthorize("hasAnyRole('ADMIN','SELLER')") public List<Commission> all(){return r.findAll();}}
