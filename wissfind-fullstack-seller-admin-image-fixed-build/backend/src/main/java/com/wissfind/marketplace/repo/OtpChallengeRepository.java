@@ -1,2 +1,17 @@
-package com.wissfind.marketplace.repo; import com.wissfind.marketplace.entity.OtpChallenge; import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.*; public interface OtpChallengeRepository extends JpaRepository<OtpChallenge,Long> {}
+package com.wissfind.marketplace.repo;
+
+import com.wissfind.marketplace.entity.OtpChallenge;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.Instant;
+import java.util.Optional;
+
+public interface OtpChallengeRepository extends JpaRepository<OtpChallenge, Long> {
+    Optional<OtpChallenge> findTopByPhoneAndPurposeAndVerifiedFalseAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+            String phone, String purpose, Instant now);
+
+    Optional<OtpChallenge> findTopByPhoneAndPurposeAndVerifiedTrueAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+            String phone, String purpose, Instant now);
+
+    Optional<OtpChallenge> findTopByPhoneAndPurposeOrderByCreatedAtDesc(String phone, String purpose);
+}
