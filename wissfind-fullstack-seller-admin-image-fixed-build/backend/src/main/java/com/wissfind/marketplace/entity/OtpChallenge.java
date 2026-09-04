@@ -12,6 +12,12 @@ public class OtpChallenge extends BaseEntity {
     @Column(nullable = false, length = 20)
     public String purpose;
 
+    // The OTP is generated and verified by 2Factor and is not stored by the application.
+    // Keep the legacy column mapped as nullable so Hibernate ddl-auto=update can
+    // automatically change an existing NOT NULL database column to nullable.
+    @Column(nullable = true, length = 20)
+    public String otp;
+
     // Nullable temporarily so existing OTP rows can be migrated safely.
     // Every newly created challenge always receives a 2Factor session ID.
     @Column(unique = true, length = 100)
