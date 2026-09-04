@@ -33,6 +33,8 @@ public class CustomerAddress extends BaseEntity {
     public String state;
     @Column(nullable = false, length = 6)
     public String pincode;
+    @Column(nullable = false)
+    public boolean pinVerified = false;
     @Column(nullable = false, length = 50)
     public String country = "India";
     @Column(nullable = false)
