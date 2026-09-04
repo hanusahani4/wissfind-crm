@@ -16,6 +16,8 @@ import java.net.URI;
 public class TwoFactorOtpService {
     private static final Logger log = LoggerFactory.getLogger(TwoFactorOtpService.class);
 
+    public record SendResult(String sessionId, String otp, String status, String details) {}
+
     private final RestClient client;
     private final ObjectMapper mapper;
     private final String apiKey;
@@ -44,7 +46,7 @@ public class TwoFactorOtpService {
         this.client = RestClient.builder().requestFactory(factory).build();
     }
 
-    public String send(String phone) {
+    public SendResult send(String phone) {
         requireConfigured();
         log.info("OTP send requested for phone ending {}", lastFour(phone));
 
@@ -59,6 +61,7 @@ public class TwoFactorOtpService {
             JsonNode response = parseResponse(body);
             String status = firstText(response, "Status", "status");
             String sessionId = firstText(response, "Details", "details", "session_id", "sessionId", "UID", "uid");
+            String providerOtp = firstText(response, "OTP", "otp");
 
             if (!isSuccessfulSend(status) || sessionId == null || sessionId.isBlank()) {
                 String message = firstText(response, "Details", "details", "message", "Message", "error", "Error");
@@ -67,8 +70,9 @@ public class TwoFactorOtpService {
                         : "Unable to send OTP: " + message);
             }
 
-            log.info("2Factor AUTOGEN2 OTP send accepted: sessionPresent=true");
-            return sessionId;
+            log.info("2Factor AUTOGEN2 OTP send accepted: status={}, sessionPresent={}, otpPresent={}",
+                    status, true, providerOtp != null && !providerOtp.isBlank());
+            return new SendResult(sessionId, providerOtp, status, firstText(response, "Details", "details"));
         } catch (RestClientResponseException e) {
             log.error("2Factor OTP send HTTP error: status={}", e.getStatusCode().value());
             throw providerHttpError(e.getStatusCode().value());
