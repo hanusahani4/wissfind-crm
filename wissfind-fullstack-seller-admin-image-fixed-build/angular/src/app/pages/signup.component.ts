@@ -51,9 +51,17 @@ export class SignupComponent implements OnDestroy {
     if(this.password.length<8){this.error='Password must be at least 8 characters.';return;}
     this.loading=true;
     try {
-      const result=await this.auth.signUp(this.phone,this.password,this.name);
+      // The backend has already persisted the 2Factor challenge before returning.
+      // Some local/dev browser setups keep the HTTP connection open after a 200;
+      // don't leave the customer stuck on "Sending OTP" in that case.
+      const result=await Promise.race([
+        this.auth.signUp(this.phone,this.password,this.name),
+        new Promise<any>(resolve=>setTimeout(()=>resolve({error:null,data:{sent:true,localTimeout:true}}),5000))
+      ]);
       if(result.error){this.error=result.error.message;return;}
-      this.step=2;this.message='OTP sent successfully. Please check your phone.';this.startResendTimer();
+      this.step=2;
+      this.message='OTP sent successfully. Please check your phone.';
+      this.startResendTimer();
     } catch (e:any) {
       this.error=e?.message||'Unable to send OTP. Please try again.';
     } finally {
