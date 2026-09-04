@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.net.URI;
+
 @Service
 public class TwoFactorOtpService {
     private static final Logger log = LoggerFactory.getLogger(TwoFactorOtpService.class);
@@ -49,7 +51,7 @@ public class TwoFactorOtpService {
         String url = buildSendUrl(phone);
         try {
             String body = client.get()
-                    .uri(url)
+                    .uri(URI.create(url))
                     .header("Accept", "application/json")
                     .retrieve()
                     .body(String.class);
@@ -88,7 +90,7 @@ public class TwoFactorOtpService {
         String url = buildVerifyUrl(sessionId.trim(), otp.trim());
         try {
             String body = client.get()
-                    .uri(url)
+                    .uri(URI.create(url))
                     .header("Accept", "application/json")
                     .retrieve()
                     .body(String.class);
