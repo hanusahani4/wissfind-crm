@@ -21,11 +21,14 @@ import { AuthService } from '../core/auth.service';
     </ng-container>
 
     <ng-container *ngIf="step === 2">
-      <h1>Verify your number</h1><p class="muted">Enter the OTP sent to <strong>{{phone}}</strong>.</p>
-      <form (ngSubmit)="verifyOtp()">
+      <h1>Reset your password</h1>
+      <p class="muted">Enter the OTP sent to <strong>{{phone}}</strong> and choose your new password.</p>
+      <form (ngSubmit)="resetPassword()">
         <div class="field"><label>Verification code</label><input name="otp" [(ngModel)]="otp" required inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456"></div>
+        <div class="field"><label>New password</label><input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password" placeholder="Minimum 8 characters"></div>
+        <div class="field"><label>Confirm password</label><input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" required minlength="8" autocomplete="new-password" placeholder="Re-enter password"></div>
         <p class="error" *ngIf="error">{{error}}</p><p class="success" *ngIf="success">{{success}}</p>
-        <button class="btn" [disabled]="loading">{{loading ? 'Verifying…' : 'Verify code'}}</button>
+        <button class="btn" [disabled]="loading">{{loading ? 'Resetting password…' : 'Verify OTP & Reset Password'}}</button>
       </form>
       <div class="otp-actions">
         <button class="text-btn" type="button" [disabled]="loading || resendSeconds > 0" (click)="resendOtp()">{{resendSeconds > 0 ? 'Resend in '+resendSeconds+'s' : 'Resend OTP'}}</button>
@@ -33,15 +36,6 @@ import { AuthService } from '../core/auth.service';
       </div>
     </ng-container>
 
-    <ng-container *ngIf="step === 3">
-      <h1>Create new password</h1><p class="muted">Choose a strong password for your WissFind account.</p>
-      <form (ngSubmit)="changePassword()">
-        <div class="field"><label>New password</label><input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password"></div>
-        <div class="field"><label>Confirm password</label><input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" required minlength="8" autocomplete="new-password"></div>
-        <p class="error" *ngIf="error">{{error}}</p><p class="success" *ngIf="success">{{success}}</p>
-        <button class="btn" [disabled]="loading">{{loading ? 'Updating…' : 'Reset password'}}</button>
-      </form>
-    </ng-container>
     <p class="switch"><a routerLink="/login">← Back to login</a></p>
   </div></main>`,
   styles: [`
@@ -84,24 +78,44 @@ export class ForgotPasswordComponent implements OnDestroy {
     }
   }
 
-  async verifyOtp(){
+  async resetPassword(){
     this.error='';this.success='';
-    if(!/^\d{4,8}$/.test(this.otp.trim())){this.error='Enter the OTP sent to your phone.';return;}
+    const token=this.otp.trim();
+    if(!/^\d{4,8}$/.test(token)){this.error='Enter the OTP sent to your phone.';return;}
+    if(this.password.length<8){this.error='Password must contain at least 8 characters.';return;}
+    if(this.password!==this.confirmPassword){this.error='Passwords do not match.';return;}
+
     this.loading=true;
+    this.cdr.detectChanges();
     try {
-      const {error}=await this.auth.verifyPasswordResetOtp(this.phone,this.otp.trim());
-      if(error){this.error=error.message;return;}
-      this.step=3;
+      const verified=await this.auth.verifyPasswordResetOtp(this.phone,token);
+      if(verified.error){
+        this.error=verified.error.message;
+        return;
+      }
+
+      const updated=await this.auth.updatePassword(this.password);
+      if(updated.error){
+        this.error=updated.error.message;
+        return;
+      }
+
+      this.success='Password reset successfully. Redirecting to login…';
+      this.cdr.detectChanges();
+      clearInterval(this.resendTimer);
+      setTimeout(()=>this.router.navigateByUrl('/login'),1000);
     } catch (e:any) {
-      this.error=e?.message||'OTP verification failed. Please try again.';
+      this.error=e?.message||'Unable to reset password. Please try again.';
     } finally {
       this.loading=false;
+      this.cdr.detectChanges();
     }
   }
 
   async resendOtp(){
     if(this.resendSeconds>0)return;
     this.error='';this.success='';this.loading=true;
+    this.cdr.detectChanges();
     try {
       const result=await this.auth.sendPasswordResetOtp(this.phone);
       if(result.error){this.error=result.error.message;return;}
@@ -110,27 +124,11 @@ export class ForgotPasswordComponent implements OnDestroy {
       this.error=e?.message||'Unable to resend OTP. Please try again.';
     } finally {
       this.loading=false;
+      this.cdr.detectChanges();
     }
   }
 
-  async changePassword(){
-    this.error='';this.success='';
-    if(this.password.length<8){this.error='Password must contain at least 8 characters.';return;}
-    if(this.password!==this.confirmPassword){this.error='Passwords do not match.';return;}
-    this.loading=true;
-    try {
-      const {error}=await this.auth.updatePassword(this.password);
-      if(error){this.error=error.message;return;}
-      this.success='Password updated successfully. Redirecting to login…';
-      setTimeout(()=>this.router.navigateByUrl('/login'),1000);
-    } catch (e:any) {
-      this.error=e?.message||'Unable to update password. Please try again.';
-    } finally {
-      this.loading=false;
-    }
-  }
-
-  changePhone(){this.step=1;this.otp='';this.error='';this.success='';this.resendSeconds=0;clearInterval(this.resendTimer);}
+  changePhone(){this.step=1;this.otp='';this.password='';this.confirmPassword='';this.error='';this.success='';this.resendSeconds=0;clearInterval(this.resendTimer);}
   ngOnDestroy(){clearInterval(this.resendTimer);}
   private startResendTimer(){clearInterval(this.resendTimer);this.resendSeconds=60;this.resendTimer=setInterval(()=>{this.resendSeconds--;if(this.resendSeconds<=0)clearInterval(this.resendTimer);},1000);}
 }
