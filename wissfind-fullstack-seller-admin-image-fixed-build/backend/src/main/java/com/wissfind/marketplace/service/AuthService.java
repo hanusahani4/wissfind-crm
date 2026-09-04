@@ -5,6 +5,8 @@ import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.repo.OtpChallengeRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.security.JwtService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import java.util.Map;
 
 @Service
 public class AuthService {
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final String SIGNUP = "SIGNUP";
     private static final String RESET = "RESET";
 
@@ -51,19 +54,25 @@ public class AuthService {
             throw new IllegalArgumentException("Please wait "+remaining+" seconds before requesting another OTP");
         }
 
-        // Send first. If the provider rejects the request, keep the existing challenge usable.
         String sessionId=twoFactor.send(p);
+        log.info("OTP provider completed; saving challenge for purpose={}", normalizedPurpose);
 
-        if(latest!=null&&!latest.consumed&&!latest.verified) { latest.consumed=true; latest.consumedAt=now; otps.save(latest); }
+        if(latest!=null&&!latest.consumed&&!latest.verified) {
+            latest.consumed=true; latest.consumedAt=now; otps.save(latest);
+            log.info("Previous pending OTP challenge marked consumed");
+        }
 
         OtpChallenge challenge=new OtpChallenge();
         challenge.phone=p; challenge.purpose=normalizedPurpose; challenge.sessionId=sessionId;
         challenge.expiresAt=now.plus(Duration.ofMinutes(ttlMinutes));
+        log.info("Saving new OTP challenge with provider session");
         otps.save(challenge);
+        log.info("New OTP challenge saved successfully with id={}", challenge.id);
 
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("sent",true); out.put("message","OTP sent successfully"); out.put("purpose",normalizedPurpose);
         out.put("expiresInSeconds",ttlMinutes*60); out.put("resendAfterSeconds",resendCooldownSeconds);
+        log.info("OTP send request completed successfully");
         return out;
     }
 
