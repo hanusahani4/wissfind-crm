@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -40,7 +40,7 @@ import { AuthService } from '../core/auth.service';
     .auth-page{min-height:70vh;display:grid;place-items:center;padding:50px 16px}.auth-card{width:min(430px,100%);padding:32px}.auth-card h1{margin:10px 0 8px}.auth-card form{display:grid;gap:16px;margin-top:26px}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:700}.field input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:12px;outline:0}.switch{text-align:center;color:#777;font-size:13px;margin-top:22px}.switch a{color:#111;font-weight:800}.auth-card .btn{width:100%;margin-top:4px}.error{color:#c62828;font-size:12px;margin:0}.success{color:#237a35;background:#eef9ef;padding:10px;border-radius:9px;font-size:12px;margin:0}.otp-actions{display:flex;justify-content:space-between;gap:12px;margin-top:15px}.text-btn{border:0;background:transparent;text-decoration:underline;cursor:pointer;font-size:12px}.text-btn:disabled{opacity:.5;cursor:not-allowed}
   `]
 })
-export class SignupComponent {
+export class SignupComponent implements OnDestroy {
   private auth=inject(AuthService); private router=inject(Router);
   step=1; name=''; phone=''; password=''; otp=''; loading=false; error=''; message=''; resendSeconds=0; private resendTimer:any;
 
@@ -50,10 +50,15 @@ export class SignupComponent {
     if(!this.phone.trim()){this.error='Please enter your phone number.';return;}
     if(this.password.length<8){this.error='Password must be at least 8 characters.';return;}
     this.loading=true;
-    const result=await this.auth.signUp(this.phone,this.password,this.name);
-    this.loading=false;
-    if(result.error){this.error=result.error.message;return;}
-    this.step=2;this.message='OTP sent successfully. Please check your phone.';this.startResendTimer();
+    try {
+      const result=await this.auth.signUp(this.phone,this.password,this.name);
+      if(result.error){this.error=result.error.message;return;}
+      this.step=2;this.message='OTP sent successfully. Please check your phone.';this.startResendTimer();
+    } catch (e:any) {
+      this.error=e?.message||'Unable to send OTP. Please try again.';
+    } finally {
+      this.loading=false;
+    }
   }
 
   async verifyOtp(){
@@ -61,22 +66,34 @@ export class SignupComponent {
     const token=this.otp.trim();
     if(!/^\d{4,8}$/.test(token)){this.error='Enter the OTP sent to your phone.';return;}
     this.loading=true;
-    const {error}=await this.auth.verifySignupOtp(this.phone,token,this.name.trim(),this.password);
-    this.loading=false;
-    if(error){this.error=error.message;return;}
-    await this.router.navigateByUrl('/');
+    try {
+      const {error}=await this.auth.verifySignupOtp(this.phone,token,this.name.trim(),this.password);
+      if(error){this.error=error.message;return;}
+      await this.router.navigateByUrl('/');
+    } catch (e:any) {
+      this.error=e?.message||'OTP verification failed. Please try again.';
+    } finally {
+      this.loading=false;
+    }
   }
 
   async resendOtp(){
     if(this.resendSeconds>0)return;
     this.error='';this.message='';this.loading=true;
-    const {error}=await this.auth.resendSignupOtp(this.phone,this.password,this.name);
-    this.loading=false;
-    if(error){this.error=error.message;return;}
-    this.message='A new OTP has been sent.';this.startResendTimer();
+    try {
+      const {error}=await this.auth.resendSignupOtp(this.phone,this.password,this.name);
+      if(error){this.error=error.message;return;}
+      this.message='A new OTP has been sent.';this.startResendTimer();
+    } catch (e:any) {
+      this.error=e?.message||'Unable to resend OTP. Please try again.';
+    } finally {
+      this.loading=false;
+    }
   }
 
   changeNumber(){this.step=1;this.otp='';this.error='';this.message='';this.resendSeconds=0;clearInterval(this.resendTimer);}
+
+  ngOnDestroy(){clearInterval(this.resendTimer);}
 
   private startResendTimer(){
     clearInterval(this.resendTimer);this.resendSeconds=60;
