@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -40,13 +41,13 @@ public class AuthController {
             @NotBlank String phone,
             @NotBlank @Size(min = 8) String password) {}
 
-    @PostMapping("/otp/send")
-    public Object send(@Valid @RequestBody Otp r) {
+    @PostMapping(value = "/otp/send", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String,Object> send(@Valid @RequestBody Otp r) {
         return auth.sendOtp(r.phone(), r.purpose());
     }
 
-    @PostMapping("/otp/verify")
-    public Object verify(@Valid @RequestBody OtpVerify r) {
+    @PostMapping(value = "/otp/verify", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String,Object> verify(@Valid @RequestBody OtpVerify r) {
         return auth.verifyOtp(r.phone(), r.otp(), r.purpose());
     }
 
