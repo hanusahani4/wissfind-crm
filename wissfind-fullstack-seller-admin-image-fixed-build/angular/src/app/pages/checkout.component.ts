@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { DecimalPipe, NgFor, NgIf } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -103,7 +103,6 @@ interface CustomerAddress {
         <div class="row discount" *ngIf="cart.productDiscount()"><span>Product discount</span><span>-₹{{cart.productDiscount() | number}}</span></div>
         <div class="row discount" *ngIf="cart.couponDiscount()"><span>Coupon</span><span>-₹{{cart.couponDiscount() | number}}</span></div>
         <div class="row"><span>Shipping <small>{{cart.paymentMethod() === 'COD' ? 'COD' : 'Online payment'}}</small></span><span [class.free]="cart.shippingCost() === 0">{{cart.shippingCost() === 0 ? 'FREE' : '₹' + (cart.shippingCost() | number)}}</span></div>
-        
         <div class="row" *ngIf="cart.giftWrap()"><span>Gift wrapping</span><span>₹{{cart.giftWrapFee() | number}}</span></div>
         <div class="total"><span>Total payable</span><strong>₹{{cart.total() | number}}</strong></div>
         <div class="save" *ngIf="cart.totalSavings()">You save ₹{{cart.totalSavings() | number}}</div>
@@ -123,6 +122,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   readonly cart = inject(CartService);
   private readonly api = inject(BackendApiService);
   private readonly auth = inject(AuthService);
+  private readonly cdr = inject(ChangeDetectorRef);
   placed = false; loading = false; error = '';
   addresses: CustomerAddress[] = [];
   selectedAddressId: number | null = null;
@@ -132,7 +132,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   form = this.emptyForm();
   private readonly pageAbort = new AbortController();
 
-  ngOnInit() { this.loadAddresses(); }
+  async ngOnInit() {
+    await this.auth.ready();
+    await this.loadAddresses();
+    this.cdr.markForCheck();
+  }
   ngOnDestroy() { this.pageAbort.abort(); }
 
   private emptyForm() { return { label:'Home', fullName:'', phone:'', line1:'', line2:'', city:'', pincode:'', defaultAddress:false }; }
@@ -141,89 +145,49 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     try {
       const rows:any = await this.api.get('/addresses', this.pageAbort.signal);
       this.addresses = Array.isArray(rows) ? rows : [];
-
-      // Never overwrite an address the customer has just selected.
-      // Only choose default/first address when there is no valid selection.
-      const preferred = preferredId != null
-        ? this.addresses.find(a => Number(a.id) === Number(preferredId))
-        : null;
+      const preferred = preferredId != null ? this.addresses.find(a => Number(a.id) === Number(preferredId)) : null;
       const defaultAddress = this.addresses.find(a => a.defaultAddress);
       this.selectedAddressId = preferred?.id ?? defaultAddress?.id ?? this.addresses[0]?.id ?? null;
-
       if (!this.addresses.length && !this.showAddressForm) this.startNewAddress();
+      this.cdr.markForCheck();
     } catch (e:any) {
       if (!this.isAbort(e)) {
         this.addressError = e?.error?.error || e?.message || 'Unable to load saved addresses.';
+        this.cdr.markForCheck();
       }
     }
   }
 
   selectAddress(a: CustomerAddress) {
-    this.selectedAddressId = Number(a.id);
-    this.showAddressForm = false;
-    this.editingAddressId = null;
-    this.addressError = '';
-    this.error = '';
+    this.selectedAddressId = Number(a.id); this.showAddressForm = false; this.editingAddressId = null; this.addressError = ''; this.error = '';
   }
-
   selectPayment(method: 'COD' | 'RAZORPAY') { this.cart.setPaymentMethod(method); this.error = ''; }
 
   startNewAddress() {
     const u:any = this.auth.user();
-    this.editingAddressId = null;
-    this.selectedAddressId = null;
-    this.form = this.emptyForm();
-    this.form.fullName = u?.name || '';
-    this.form.phone = u?.phone || '';
-    this.pinInfo = null;
-    this.addressError = '';
-    this.error = '';
-    this.showAddressForm = true;
+    this.editingAddressId = null; this.selectedAddressId = null; this.form = this.emptyForm();
+    this.form.fullName = u?.name || ''; this.form.phone = u?.phone || ''; this.pinInfo = null; this.addressError = ''; this.error = ''; this.showAddressForm = true;
+    this.cdr.markForCheck();
   }
 
   editAddress(a: CustomerAddress) {
-    this.editingAddressId = Number(a.id);
-    this.selectedAddressId = null;
-    this.form = {
-      label:a.label, fullName:a.fullName, phone:a.phone, line1:a.line1,
-      line2:a.line2||'', city:a.city, pincode:a.pincode,
-      defaultAddress:a.defaultAddress
-    };
-    this.pinInfo = {district:a.district,state:a.state,postOffices:[],valid:true};
-    this.addressError='';
-    this.error='';
-    this.showAddressForm=true;
+    this.editingAddressId = Number(a.id); this.selectedAddressId = null;
+    this.form = { label:a.label, fullName:a.fullName, phone:a.phone, line1:a.line1, line2:a.line2||'', city:a.city, pincode:a.pincode, defaultAddress:a.defaultAddress };
+    this.pinInfo = {district:a.district,state:a.state,postOffices:[],valid:true}; this.addressError=''; this.error=''; this.showAddressForm=true; this.cdr.markForCheck();
   }
 
   async deleteAddress(a: CustomerAddress) {
     if (this.savingAddress || this.loading) return;
-    const ok = window.confirm(`Delete "${a.label}" address?`);
-    if (!ok) return;
-
-    this.addressError = '';
+    const ok = window.confirm(`Delete "${a.label}" address?`); if (!ok) return;
+    this.addressError = ''; this.cdr.markForCheck();
     try {
       await this.api.delete(`/addresses/${a.id}`, this.pageAbort.signal);
-      const deletedId = Number(a.id);
-      this.addresses = this.addresses.filter(x => Number(x.id) !== deletedId);
-
-      if (this.selectedAddressId === deletedId) {
-        const fallback = this.addresses.find(x => x.defaultAddress) ?? this.addresses[0];
-        this.selectedAddressId = fallback?.id ?? null;
-      }
-
-      if (this.editingAddressId === deletedId) {
-        this.editingAddressId = null;
-        this.showAddressForm = false;
-        this.form = this.emptyForm();
-        this.pinInfo = null;
-      }
-
-      // Refresh from DB so default-address changes are reflected immediately.
+      const deletedId = Number(a.id); this.addresses = this.addresses.filter(x => Number(x.id) !== deletedId);
+      if (this.selectedAddressId === deletedId) { const fallback = this.addresses.find(x => x.defaultAddress) ?? this.addresses[0]; this.selectedAddressId = fallback?.id ?? null; }
+      if (this.editingAddressId === deletedId) { this.editingAddressId = null; this.showAddressForm = false; this.form = this.emptyForm(); this.pinInfo = null; }
       await this.loadAddresses(this.selectedAddressId);
     } catch (e:any) {
-      if (!this.isAbort(e)) {
-        this.addressError = e?.error?.error || e?.message || 'Unable to delete address.';
-      }
+      if (!this.isAbort(e)) { this.addressError = e?.error?.error || e?.message || 'Unable to delete address.'; this.cdr.markForCheck(); }
     }
   }
 
@@ -231,17 +195,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   async validatePincode() {
     const pin=(this.form.pincode||'').replace(/\D/g,''); this.form.pincode=pin;
-    if (!/^\d{6}$/.test(pin)) { this.pinInfo=null; return false; }
-    const requestId=++this.pinRequestId; this.pinLoading=true; this.addressError='';
+    if (!/^\d{6}$/.test(pin)) { this.pinInfo=null; this.cdr.markForCheck(); return false; }
+    const requestId=++this.pinRequestId; this.pinLoading=true; this.addressError=''; this.cdr.markForCheck();
     try {
       const info:any=await this.api.get('/addresses/pincode/'+pin, this.pageAbort.signal);
       if(requestId!==this.pinRequestId) return false;
-      this.pinInfo=info; if(info?.district && !this.form.city) this.form.city=info.district; return !!info?.valid;
-    } catch(e:any) { if(requestId===this.pinRequestId){this.pinInfo=null;this.addressError=e?.error?.error||e?.message||'Invalid PIN code.';} return false; }
-    finally { if(requestId===this.pinRequestId) this.pinLoading=false; }
+      this.pinInfo=info; if(info?.district && !this.form.city) this.form.city=info.district; this.cdr.markForCheck(); return !!info?.valid;
+    } catch(e:any) { if(requestId===this.pinRequestId){this.pinInfo=null;this.addressError=e?.error?.error||e?.message||'Invalid PIN code.';this.cdr.markForCheck();} return false; }
+    finally { if(requestId===this.pinRequestId){this.pinLoading=false;this.cdr.markForCheck();} }
   }
 
-  onPincodeInput() { this.form.pincode=this.form.pincode.replace(/\D/g,'').slice(0,6); this.pinInfo=null; this.addressError=''; }
+  onPincodeInput() { this.form.pincode=this.form.pincode.replace(/\D/g,'').slice(0,6); this.pinInfo=null; this.addressError=''; this.cdr.markForCheck(); }
 
   private validateForm() {
     const f=this.form, phone=this.normalizePhone(f.phone);
@@ -256,65 +220,33 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   async saveAddress() {
-    this.addressError = this.validateForm();
+    this.addressError = this.validateForm(); this.cdr.markForCheck();
     if (this.addressError) return;
-
     if (!this.pinInfo?.valid) {
       const valid = await this.validatePincode();
-      if (!valid) {
-        this.addressError = this.validateForm() || 'Please enter a real 6-digit Indian PIN code.';
-        return;
-      }
+      if (!valid) { this.addressError = this.validateForm() || 'Please enter a real 6-digit Indian PIN code.'; this.cdr.markForCheck(); return; }
     }
-
-    this.savingAddress = true;
-    this.addressError = '';
-
+    this.savingAddress = true; this.addressError = ''; this.cdr.markForCheck();
     const editingId = this.editingAddressId;
     try {
-      const payload = {
-        ...this.form,
-        phone: this.normalizePhone(this.form.phone)
-      };
-
-      const saved:any = editingId
-        ? await this.api.put('/addresses/' + editingId, payload, this.pageAbort.signal)
-        : await this.api.post('/addresses', payload, this.pageAbort.signal);
-
+      const payload = {...this.form, phone: this.normalizePhone(this.form.phone)};
+      const saved:any = editingId ? await this.api.put('/addresses/' + editingId, payload, this.pageAbort.signal) : await this.api.post('/addresses', payload, this.pageAbort.signal);
       const savedId = Number(saved?.id);
-
-      // Close immediately after a successful DB write. Do not let a secondary
-      // GET/list refresh failure make the customer think the save failed.
-      this.showAddressForm = false;
-      this.editingAddressId = null;
-      this.addressError = '';
-
-      if (saved?.id != null) {
-        this.selectedAddressId = savedId;
-      }
-
-      // Optimistically update the UI, then reconcile with the DB.
+      this.showAddressForm = false; this.editingAddressId = null; this.addressError = '';
+      if (saved?.id != null) this.selectedAddressId = savedId;
       if (saved?.id != null) {
         const idx = this.addresses.findIndex(a => Number(a.id) === savedId);
-        if (idx >= 0) {
-          this.addresses[idx] = saved;
-        } else {
-          this.addresses = [saved, ...this.addresses];
-        }
+        if (idx >= 0) this.addresses[idx] = saved; else this.addresses = [saved, ...this.addresses];
       }
-
+      this.cdr.markForCheck();
       await this.loadAddresses(saved?.id != null ? savedId : this.selectedAddressId);
     } catch(e:any) {
-      if (!this.isAbort(e)) {
-        this.addressError = e?.error?.error || e?.message || 'Unable to save address. Please try again.';
-      }
-    } finally {
-      this.savingAddress = false;
-    }
+      if (!this.isAbort(e)) { this.addressError = e?.error?.error || e?.message || 'Unable to save address. Please try again.'; this.cdr.markForCheck(); }
+    } finally { this.savingAddress = false; this.cdr.markForCheck(); }
   }
 
   async placeOrder() {
-    if(this.loading) return; this.loading=true; this.error='';
+    if(this.loading) return; this.loading=true; this.error=''; this.cdr.markForCheck();
     try {
       const items=this.cart.cart(); if(!items.length) throw new Error('Your cart is empty.');
       if(!this.selectedAddressId) throw new Error('Please select a shipping address.');
@@ -325,17 +257,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       const payload:any={productIds,items:orderItems,shippingAddressId:this.selectedAddressId,paymentMethod:this.cart.paymentMethod(),couponCode:this.cart.couponCode(),giftWrap:this.cart.giftWrap(),paymentStatus:'PENDING',deliveryStatus:'Processing'};
       if(knownSellerIds.length===1) payload.sellerId=knownSellerIds[0];
       const order:any=await this.api.post('/orders',payload,this.pageAbort.signal);
-
-      if(this.cart.paymentMethod()==='COD') {
-        await this.api.post('/payments/dummy',{order:{id:order.id},amount:order.total},this.pageAbort.signal);
-        this.placed=true; this.cart.clear();
-        return;
-      }
-
-      const rz:any=await this.api.post('/payments/razorpay/order',{orderId:order.id},this.pageAbort.signal);
-      await this.openRazorpay(rz, order);
+      if(this.cart.paymentMethod()==='COD') { await this.api.post('/payments/dummy',{order:{id:order.id},amount:order.total},this.pageAbort.signal); this.placed=true; this.cart.clear(); return; }
+      const rz:any=await this.api.post('/payments/razorpay/order',{orderId:order.id},this.pageAbort.signal); await this.openRazorpay(rz, order);
     } catch(e:any) { if(!this.isAbort(e)) this.error=e?.error?.error||e?.message||'Unable to place order. Please try again.'; }
-    finally { this.loading=false; }
+    finally { this.loading=false; this.cdr.markForCheck(); }
   }
 
   private openRazorpay(data:any, order:any): Promise<void> {
@@ -343,17 +268,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       const RazorpayCtor=(window as any).Razorpay;
       if(!RazorpayCtor) { reject(new Error('Razorpay checkout could not be loaded. Please refresh and try again.')); return; }
       const u:any=this.auth.user();
-      const options:any={
-        key:data.keyId, amount:data.amount, currency:data.currency || 'INR',
-        name:'WissFind', description:'Order '+order.orderNumber, order_id:data.razorpayOrderId,
-        prefill:{name:u?.name || '', email:u?.email || '', contact:u?.phone || ''},
-        theme:{color:'#111111'}, timeout:600,
-        handler: async (response:any) => {
-          try {
-            await this.api.post('/payments/razorpay/verify', response, this.pageAbort.signal);
-            this.placed=true; this.cart.clear(); resolve();
-          } catch(e:any) { reject(new Error(e?.error?.error||e?.message||'Razorpay payment verification failed.')); }
-        },
+      const options:any={key:data.keyId, amount:data.amount, currency:data.currency || 'INR', name:'WissFind', description:'Order '+order.orderNumber, order_id:data.razorpayOrderId, prefill:{name:u?.name || '', email:u?.email || '', contact:u?.phone || ''}, theme:{color:'#111111'}, timeout:600,
+        handler: async (response:any) => { try { await this.api.post('/payments/razorpay/verify', response, this.pageAbort.signal); this.placed=true; this.cart.clear(); this.cdr.markForCheck(); resolve(); } catch(e:any) { reject(new Error(e?.error?.error||e?.message||'Razorpay payment verification failed.')); } },
         modal:{ondismiss:()=>reject(new Error('Payment cancelled. Your order is still pending and no successful payment was recorded.'))}
       };
       try { new RazorpayCtor(options).open(); } catch(e) { reject(e); }
