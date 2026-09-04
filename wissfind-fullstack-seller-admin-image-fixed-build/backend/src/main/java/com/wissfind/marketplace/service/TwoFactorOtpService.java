@@ -10,14 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.security.SecureRandom;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 @Service
 public class TwoFactorOtpService {
     private static final Logger log = LoggerFactory.getLogger(TwoFactorOtpService.class);
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final RestClient client;
     private final ObjectMapper mapper;
@@ -31,9 +26,9 @@ public class TwoFactorOtpService {
             ObjectMapper mapper,
             @Value("${app.otp.api-key:}") String apiKey,
             @Value("${app.otp.base-url:https://2factor.in}") String baseUrl,
-            @Value("${app.otp.send-path:/API/V1/OTP/SEND}") String sendPath,
-            @Value("${app.otp.verify-path:/API/V1/SMS/VERIFY}") String verifyPath,
-            @Value("${app.otp.template-name:LOGIN_OTP}") String templateName) {
+            @Value("${app.otp.send-path:/API/V1/{api_key}/SMS/{phone_number}/AUTOGEN2/{otp_template_name}}") String sendPath,
+            @Value("${app.otp.verify-path:/API/V1/{api_key}/SMS/VERIFY/{session_id}/{otp}}") String verifyPath,
+            @Value("${app.otp.template-name:OTP1}") String templateName) {
         this.mapper = mapper;
         this.apiKey = apiKey;
         this.baseUrl = trimTrailingSlash(baseUrl);
@@ -51,50 +46,54 @@ public class TwoFactorOtpService {
         requireConfigured();
         log.info("OTP send requested for phone ending {}", lastFour(phone));
 
-        // 2Factor's current OTP/SEND API expects the API key in X-API-Key.
-        // Generate the code only to place it into the registered DLT template;
-        // the code itself is never returned to the frontend or stored in our DB.
-        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("to", phone);
-        payload.put("template_name", templateName);
-        payload.put("var1", otp);
-
-        JsonNode response = post(sendPath, payload, true);
-        String sessionId = firstText(response, "session_id", "sessionId", "UID", "uid", "Details", "details");
-        String status = firstText(response, "status", "Status");
-
-        if (sessionId == null || sessionId.isBlank()) {
-            String message = firstText(response, "message", "Message", "error", "Error", "Details", "details");
-            throw new IllegalArgumentException(message == null || message.isBlank()
-                    ? "OTP provider did not return a verification session."
-                    : "Unable to send OTP: " + message);
-        }
-        if (status != null && !"sent".equalsIgnoreCase(status) && !"success".equalsIgnoreCase(status)) {
-            throw new IllegalArgumentException("Unable to send OTP: " + status);
-        }
-
-        log.info("2Factor OTP send accepted: sessionPresent=true");
-        return sessionId;
-    }
-
-    public void verify(String sessionId, String otp) {
-        requireConfigured();
-        if (sessionId == null || sessionId.isBlank() || otp == null || !otp.matches("\\d{4,8}")) {
-            throw new IllegalArgumentException("Invalid OTP.");
-        }
-
-        log.info("OTP verification requested");
-        String url = baseUrl + normalizePath(verifyPath) + "/" + encodePath(sessionId) + "/" + encodePath(otp.trim());
+        String url = buildSendUrl(phone);
         try {
             String body = client.get()
                     .uri(url)
                     .header("Accept", "application/json")
-                    .header("X-API-Key", apiKey)
                     .retrieve()
                     .body(String.class);
 
-            JsonNode response = mapper.readTree(body);
+            JsonNode response = parseResponse(body);
+            String status = firstText(response, "Status", "status");
+            String sessionId = firstText(response, "Details", "details", "session_id", "sessionId", "UID", "uid");
+
+            if (!isSuccessfulSend(status) || sessionId == null || sessionId.isBlank()) {
+                String message = firstText(response, "Details", "details", "message", "Message", "error", "Error");
+                throw new IllegalArgumentException(message == null || message.isBlank()
+                        ? "Unable to send OTP."
+                        : "Unable to send OTP: " + message);
+            }
+
+            log.info("2Factor AUTOGEN2 OTP send accepted: sessionPresent=true");
+            return sessionId;
+        } catch (RestClientResponseException e) {
+            log.error("2Factor OTP send HTTP error: status={}", e.getStatusCode().value());
+            throw providerHttpError(e.getStatusCode().value());
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("2Factor OTP send connection error: {}", e.getMessage(), e);
+            throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
+        }
+    }
+
+    public void verify(String sessionId, String otp) {
+        requireConfigured();
+        if (sessionId == null || sessionId.isBlank() || otp == null || !otp.trim().matches("\\d{4,8}")) {
+            throw new IllegalArgumentException("Invalid OTP.");
+        }
+
+        log.info("OTP verification requested");
+        String url = buildVerifyUrl(sessionId.trim(), otp.trim());
+        try {
+            String body = client.get()
+                    .uri(url)
+                    .header("Accept", "application/json")
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode response = parseResponse(body);
             if (isSuccessfulVerification(response)) {
                 log.info("2Factor OTP verification succeeded");
                 return;
@@ -108,45 +107,34 @@ public class TwoFactorOtpService {
         throw new IllegalArgumentException("Invalid or expired OTP");
     }
 
-    private JsonNode post(String path, Map<String, Object> payload, boolean apiKeyHeader) {
-        String url = baseUrl + normalizePath(path);
-        try {
-            String body = client.post()
-                    .uri(url)
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "application/json")
-                    .header("X-API-Key", apiKey)
-                    .body(payload)
-                    .retrieve()
-                    .body(String.class);
+    private String buildSendUrl(String phone) {
+        return baseUrl + sendPath
+                .replace("{api_key}", encodePath(apiKey))
+                .replace("{phone_number}", encodePath(phone))
+                .replace("{otp_template_name}", encodePath(templateName));
+    }
 
-            if (body == null || body.isBlank()) {
-                throw new IllegalArgumentException("OTP service returned an empty response.");
-            }
-            JsonNode response = mapper.readTree(body);
-            if (response == null || !response.isObject()) {
-                throw new IllegalArgumentException("OTP service returned an invalid response.");
-            }
-            return response;
-        } catch (RestClientResponseException e) {
-            log.error("2Factor HTTP error: status={}, path={}, body={}",
-                    e.getStatusCode().value(), path, e.getResponseBodyAsString());
-            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
-                throw new IllegalArgumentException("OTP provider rejected the API key or request.");
-            }
-            if (e.getStatusCode().value() == 429) {
-                throw new IllegalArgumentException("OTP service rate limit reached. Please try again later.");
-            }
-            if (e.getStatusCode().value() == 404) {
-                throw new IllegalArgumentException("OTP provider endpoint is unavailable. Please check the 2Factor API configuration.");
-            }
-            throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("2Factor connection error: {}", e.getMessage(), e);
-            throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
+    private String buildVerifyUrl(String sessionId, String otp) {
+        return baseUrl + verifyPath
+                .replace("{api_key}", encodePath(apiKey))
+                .replace("{session_id}", encodePath(sessionId))
+                .replace("{otp}", encodePath(otp));
+    }
+
+    private JsonNode parseResponse(String body) throws Exception {
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("OTP service returned an empty response.");
         }
+        JsonNode response = mapper.readTree(body);
+        if (response == null || !response.isObject()) {
+            throw new IllegalArgumentException("OTP service returned an invalid response.");
+        }
+        return response;
+    }
+
+    private boolean isSuccessfulSend(String status) {
+        return "Success".equalsIgnoreCase(status) || "success".equalsIgnoreCase(status)
+                || "sent".equalsIgnoreCase(status);
     }
 
     private boolean isSuccessfulVerification(JsonNode response) {
@@ -179,6 +167,19 @@ public class TwoFactorOtpService {
         }
     }
 
+    private IllegalArgumentException providerHttpError(int status) {
+        if (status == 401 || status == 403) {
+            return new IllegalArgumentException("OTP provider rejected the API key or request.");
+        }
+        if (status == 429) {
+            return new IllegalArgumentException("OTP service rate limit reached. Please try again later.");
+        }
+        if (status == 404) {
+            return new IllegalArgumentException("OTP provider endpoint is unavailable. Please check the 2Factor API configuration.");
+        }
+        return new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
+    }
+
     private String trimTrailingSlash(String value) {
         return value == null ? "" : value.replaceAll("/+$", "");
     }
@@ -189,7 +190,13 @@ public class TwoFactorOtpService {
     }
 
     private String encodePath(String value) {
-        return value.replace("/", "%2F");
+        if (value == null) return "";
+        return value
+                .replace("%", "%25")
+                .replace("/", "%2F")
+                .replace("?", "%3F")
+                .replace("#", "%23")
+                .replace(" ", "%20");
     }
 
     private String lastFour(String phone) {
