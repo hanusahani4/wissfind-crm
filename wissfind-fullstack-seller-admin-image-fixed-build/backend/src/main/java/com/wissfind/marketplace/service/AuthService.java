@@ -50,9 +50,12 @@ public class AuthService {
             long remaining=Math.max(1,Duration.between(now,latest.createdAt.plusSeconds(resendCooldownSeconds)).toSeconds());
             throw new IllegalArgumentException("Please wait "+remaining+" seconds before requesting another OTP");
         }
+
+        // Send first. If the provider rejects the request, keep the existing challenge usable.
+        String sessionId=twoFactor.send(p);
+
         if(latest!=null&&!latest.consumed&&!latest.verified) { latest.consumed=true; latest.consumedAt=now; otps.save(latest); }
 
-        String sessionId=twoFactor.send(p);
         OtpChallenge challenge=new OtpChallenge();
         challenge.phone=p; challenge.purpose=normalizedPurpose; challenge.sessionId=sessionId;
         challenge.expiresAt=now.plus(Duration.ofMinutes(ttlMinutes));
