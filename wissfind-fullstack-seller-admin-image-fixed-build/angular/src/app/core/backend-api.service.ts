@@ -1,6 +1,6 @@
 import { Injectable, inject, ApplicationRef } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom, fromEvent } from 'rxjs';
+import { firstValueFrom, fromEvent, Observable } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
@@ -37,7 +37,7 @@ export class BackendApiService {
    * Every request can be cancelled by the page that created it.
    * This is important when navigating away from a slow page.
    */
-  private request<T>(source: any, signal?: AbortSignal): Promise<T> {
+  private request<T>(source: Observable<T>, signal?: AbortSignal): Promise<T> {
     if (!signal) {
       return firstValueFrom(source).then(
         value => {
