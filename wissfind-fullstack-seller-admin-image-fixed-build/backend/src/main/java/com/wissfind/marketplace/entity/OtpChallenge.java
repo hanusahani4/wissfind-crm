@@ -12,7 +12,9 @@ public class OtpChallenge extends BaseEntity {
     @Column(nullable = false, length = 20)
     public String purpose;
 
-    @Column(nullable = false, unique = true, length = 100)
+    // Nullable temporarily so existing OTP rows can be migrated safely.
+    // Every newly created challenge always receives a 2Factor session ID.
+    @Column(unique = true, length = 100)
     public String sessionId;
 
     @Column(nullable = false)
