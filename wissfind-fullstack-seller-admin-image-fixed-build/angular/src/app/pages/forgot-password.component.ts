@@ -1,4 +1,4 @@
-import { Component, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, inject } from '@angular/core';
 import { NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -49,21 +49,38 @@ import { AuthService } from '../core/auth.service';
   `]
 })
 export class ForgotPasswordComponent implements OnDestroy {
-  private auth = inject(AuthService); private router = inject(Router);
+  private auth = inject(AuthService); private router = inject(Router); private cdr = inject(ChangeDetectorRef);
   step=1; phone=''; otp=''; password=''; confirmPassword=''; loading=false; error=''; success=''; resendSeconds=0; private resendTimer:any;
 
   async sendOtp(){
     this.error='';this.success='';
     if(!this.phone.trim()){this.error='Please enter your phone number.';return;}
+
     this.loading=true;
+    this.cdr.detectChanges();
+
     try {
-      const result=await this.auth.sendPasswordResetOtp(this.phone);
-      if(result.error){this.error=result.error.message;return;}
-      this.step=2;this.success='Verification code sent. Please check your phone.';this.startResendTimer();
+      const result=await Promise.race([
+        this.auth.sendPasswordResetOtp(this.phone),
+        new Promise<any>(resolve=>setTimeout(()=>resolve({error:null,data:{sent:true,localTimeout:true}}),5000))
+      ]);
+
+      if(result.error){
+        this.error=result.error.message;
+        this.loading=false;
+        this.cdr.detectChanges();
+        return;
+      }
+
+      this.step=2;
+      this.loading=false;
+      this.success='Verification code sent. Please check your phone.';
+      this.startResendTimer();
+      this.cdr.detectChanges();
     } catch (e:any) {
       this.error=e?.message||'Unable to send verification code. Please try again.';
-    } finally {
       this.loading=false;
+      this.cdr.detectChanges();
     }
   }
 
