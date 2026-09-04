@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -21,28 +21,32 @@ import { AuthService } from '../core/auth.service';
   styles:[`.auth-page{min-height:70vh;display:grid;place-items:center;padding:50px 16px}.auth-card{width:min(430px,100%);padding:32px}.auth-card h1{margin:10px 0 8px}.auth-card form{display:grid;gap:16px;margin-top:26px}.forgot{text-align:right;margin:-7px 0 0;font-size:12px}.forgot a{font-weight:800;color:#111}.switch{text-align:center;color:#777;font-size:13px}.switch a{color:#111;font-weight:800}.auth-card .btn{width:100%;margin-top:4px}`]
 })
 export class LoginComponent {
-  private auth=inject(AuthService); private router=inject(Router); private route=inject(ActivatedRoute);
+  private auth=inject(AuthService); private router=inject(Router); private route=inject(ActivatedRoute); private cdr=inject(ChangeDetectorRef);
   phone=''; password=''; loading=false; error='';
   async submit(){
-    this.loading=true; this.error='';
-    const {error}=await this.auth.signIn(this.phone,this.password);
-    this.loading=false;
-    if(error){this.error=error.message;return;}
-    const role = this.auth.getRole();
-    if (role === 'ADMIN') { await this.router.navigateByUrl('/admin'); return; }
-    if (role === 'SELLER') { await this.router.navigateByUrl('/seller'); return; }
+    this.loading=true; this.error=''; this.cdr.markForCheck();
+    try {
+      const {error}=await this.auth.signIn(this.phone,this.password);
+      this.loading=false; this.cdr.markForCheck();
+      if(error){this.error=error.message; this.cdr.markForCheck(); return;}
+      const role = this.auth.getRole();
+      if (role === 'ADMIN') { await this.router.navigateByUrl('/admin'); return; }
+      if (role === 'SELLER') { await this.router.navigateByUrl('/seller'); return; }
 
-    const requestedUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    const safeReturnUrl = requestedUrl && requestedUrl.startsWith('/') && !requestedUrl.startsWith('//')
-      ? requestedUrl
-      : '/';
+      const requestedUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+      const safeReturnUrl = requestedUrl && requestedUrl.startsWith('/') && !requestedUrl.startsWith('//')
+        ? requestedUrl
+        : '/';
 
-    // Never bounce a customer back into an authentication page.
-    const returnUrl = ['/login', '/signup', '/forgot-password'].some(path =>
-      safeReturnUrl === path || safeReturnUrl.startsWith(path + '?')
-    ) ? '/' : safeReturnUrl;
+      const returnUrl = ['/login', '/signup', '/forgot-password'].some(path =>
+        safeReturnUrl === path || safeReturnUrl.startsWith(path + '?')
+      ) ? '/' : safeReturnUrl;
 
-    await this.router.navigateByUrl(returnUrl);
-
+      await this.router.navigateByUrl(returnUrl);
+    } catch (e:any) {
+      this.loading=false;
+      this.error=e?.message||'Login failed. Please try again.';
+      this.cdr.markForCheck();
+    }
   }
 }
