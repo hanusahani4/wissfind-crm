@@ -54,8 +54,10 @@ public class AuthService {
             throw new IllegalArgumentException("Please wait "+remaining+" seconds before requesting another OTP");
         }
 
-        String sessionId=twoFactor.send(p);
-        log.info("OTP provider completed; saving challenge for purpose={}", normalizedPurpose);
+        TwoFactorOtpService.SendResult provider=twoFactor.send(p);
+        log.info("OTP provider completed; status={}, sessionPresent={}, otpPresent={}",
+                provider.status(), provider.sessionId()!=null && !provider.sessionId().isBlank(),
+                provider.otp()!=null && !provider.otp().isBlank());
 
         if(latest!=null&&!latest.consumed&&!latest.verified) {
             latest.consumed=true; latest.consumedAt=now; otps.save(latest);
@@ -63,16 +65,28 @@ public class AuthService {
         }
 
         OtpChallenge challenge=new OtpChallenge();
-        challenge.phone=p; challenge.purpose=normalizedPurpose; challenge.sessionId=sessionId;
+        challenge.phone=p;
+        challenge.purpose=normalizedPurpose;
+        challenge.sessionId=provider.sessionId();
+        // AUTOGEN2 returns the generated OTP in the provider response. Store it in
+        // the legacy nullable column for audit/debug visibility. Verification still
+        // happens against 2Factor using the session ID.
+        challenge.otp=provider.otp();
         challenge.expiresAt=now.plus(Duration.ofMinutes(ttlMinutes));
-        log.info("Saving new OTP challenge with provider session");
+        log.info("Saving new OTP challenge: sessionPresent={}, otpPresent={}",
+                challenge.sessionId!=null && !challenge.sessionId.isBlank(),
+                challenge.otp!=null && !challenge.otp.isBlank());
         otps.save(challenge);
         log.info("New OTP challenge saved successfully with id={}", challenge.id);
 
         Map<String,Object> out=new LinkedHashMap<>();
-        out.put("sent",true); out.put("message","OTP sent successfully"); out.put("purpose",normalizedPurpose);
-        out.put("expiresInSeconds",ttlMinutes*60); out.put("resendAfterSeconds",resendCooldownSeconds);
-        log.info("OTP send request completed successfully");
+        out.put("sent",true);
+        out.put("success",true);
+        out.put("message","OTP sent successfully");
+        out.put("purpose",normalizedPurpose);
+        out.put("expiresInSeconds",ttlMinutes*60);
+        out.put("resendAfterSeconds",resendCooldownSeconds);
+        out.put("sessionPresent",true);
         return out;
     }
 
@@ -87,7 +101,7 @@ public class AuthService {
                 .orElseThrow(()->new IllegalArgumentException("Invalid or expired OTP"));
         twoFactor.verify(challenge.sessionId,otp.trim());
         challenge.verified=true; challenge.verifiedAt=now; otps.save(challenge);
-        return Map.of("verified",true);
+        return Map.of("verified",true,"success",true,"message","OTP verified successfully");
     }
 
     public Map<String,Object> register(String phone,String password,String name) {
