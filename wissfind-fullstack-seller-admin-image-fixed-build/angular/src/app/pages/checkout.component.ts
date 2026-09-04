@@ -32,7 +32,7 @@ interface CustomerAddress {
       <section class="card form">
         <div class="section-title"><span>1</span><div><strong>Shipping address</strong><small>Select a saved address or add a new one</small></div></div>
 
-        <div class="address-list" *ngIf="addresses.length">
+        <div class="address-list" *ngIf="addresses.length && !showAddressForm">
           <div class="address-card" *ngFor="let a of addresses"
                [class.selected]="selectedAddressId === a.id"
                (click)="selectAddress(a)"
