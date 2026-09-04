@@ -34,9 +34,9 @@ app:
     provider: 2FACTOR
     api-key: ${TWOFACTOR_API_KEY:}
     base-url: ${TWOFACTOR_BASE_URL:https://2factor.in}
-    send-path: ${TWOFACTOR_SEND_PATH:/API/V1/OTP/SEND}
-    verify-path: ${TWOFACTOR_VERIFY_PATH:/API/V1/SMS/VERIFY}
-    template-name: ${TWOFACTOR_TEMPLATE_NAME:LOGIN_OTP}
+    send-path: ${TWOFACTOR_SEND_PATH:/API/V1/{api_key}/SMS/{phone_number}/AUTOGEN2/{otp_template_name}}
+    verify-path: ${TWOFACTOR_VERIFY_PATH:/API/V1/{api_key}/SMS/VERIFY/{session_id}/{otp}}
+    template-name: ${TWOFACTOR_TEMPLATE_NAME:OTP1}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
 
 management:
