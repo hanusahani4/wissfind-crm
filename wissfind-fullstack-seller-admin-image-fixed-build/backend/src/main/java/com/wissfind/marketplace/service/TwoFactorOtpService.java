@@ -9,9 +9,9 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriUtils;
 
-import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 public class TwoFactorOtpService {
@@ -21,14 +21,20 @@ public class TwoFactorOtpService {
     private final ObjectMapper mapper;
     private final String apiKey;
     private final String baseUrl;
+    private final String sendPath;
+    private final String verifyPath;
 
     public TwoFactorOtpService(
             ObjectMapper mapper,
             @Value("${app.otp.api-key:}") String apiKey,
-            @Value("${app.otp.base-url:https://2factor.in/API/V1}") String baseUrl) {
+            @Value("${app.otp.base-url:https://api.2factor.in/v1}") String baseUrl,
+            @Value("${app.otp.send-path:/sms/otp}") String sendPath,
+            @Value("${app.otp.verify-path:/sms/otp/verify}") String verifyPath) {
         this.mapper = mapper;
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl.replaceAll("/$", "");
+        this.baseUrl = trimTrailingSlash(baseUrl);
+        this.sendPath = normalizePath(sendPath);
+        this.verifyPath = normalizePath(verifyPath);
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
@@ -39,18 +45,22 @@ public class TwoFactorOtpService {
     public String send(String phone) {
         requireConfigured();
         log.info("OTP send requested for phone ending {}", lastFour(phone));
-        String url = baseUrl + "/" + enc(apiKey) + "/SMS/" + enc(phone.replace("+", "")) + "/AUTOGEN";
-        JsonNode response = get(url);
-        String status = response.path("Status").asText("");
-        String details = response.path("Details").asText("");
-        log.info("2Factor OTP send response: status={}, detailsPresent={}", status, !details.isBlank());
-        if (!"Success".equalsIgnoreCase(status)) {
-            throw new IllegalArgumentException("Unable to send OTP. Please try again.");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("apiKey", apiKey);
+        payload.put("to", phone);
+
+        JsonNode response = post(sendPath, payload);
+        String uid = firstText(response, "UID", "uid", "sessionId", "session_id", "Details", "details");
+
+        log.info("2Factor OTP send response received: sessionPresent={}", uid != null && !uid.isBlank());
+        if (uid == null || uid.isBlank()) {
+            String message = firstText(response, "message", "Message", "error", "Error");
+            throw new IllegalArgumentException(message == null || message.isBlank()
+                    ? "OTP provider did not return a verification session."
+                    : "Unable to send OTP: " + message);
         }
-        if (details.isBlank()) {
-            throw new IllegalArgumentException("OTP provider did not return a session.");
-        }
-        return details;
+        return uid;
     }
 
     public void verify(String sessionId, String otp) {
@@ -58,36 +68,82 @@ public class TwoFactorOtpService {
         if (sessionId == null || sessionId.isBlank() || otp == null || !otp.matches("\\d{4,8}")) {
             throw new IllegalArgumentException("Invalid OTP.");
         }
+
         log.info("OTP verification requested");
-        String url = baseUrl + "/" + enc(apiKey) + "/SMS/VERIFY/" + enc(sessionId) + "/" + enc(otp);
-        JsonNode response = get(url);
-        String status = response.path("Status").asText("");
-        String details = response.path("Details").asText("");
-        log.info("2Factor OTP verify response: status={}, details={}", status, details);
-        if (!"Success".equalsIgnoreCase(status) || !"OTP Matched".equalsIgnoreCase(details)) {
-            throw new IllegalArgumentException("Invalid or expired OTP");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("apiKey", apiKey);
+        payload.put("UID", sessionId);
+        payload.put("otp", otp.trim());
+
+        JsonNode response = post(verifyPath, payload);
+        if (isSuccessfulVerification(response)) {
+            log.info("2Factor OTP verification succeeded");
+            return;
         }
+
+        String message = firstText(response, "message", "Message", "error", "Error", "Details", "details");
+        log.warn("2Factor OTP verification failed: {}", message == null ? "provider rejected OTP" : message);
+        throw new IllegalArgumentException("Invalid or expired OTP");
     }
 
-    private JsonNode get(String url) {
+    private JsonNode post(String path, Map<String, Object> payload) {
+        String url = baseUrl + normalizePath(path);
         try {
-            String body = client.get().uri(url)
+            String body = client.post()
+                    .uri(url)
                     .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .body(payload)
                     .retrieve()
                     .body(String.class);
+
             if (body == null || body.isBlank()) {
                 throw new IllegalArgumentException("OTP service returned an empty response.");
             }
-            return mapper.readTree(body);
+
+            JsonNode response = mapper.readTree(body);
+            if (response == null || !response.isObject()) {
+                throw new IllegalArgumentException("OTP service returned an invalid response.");
+            }
+            return response;
         } catch (RestClientResponseException e) {
-            log.error("2Factor HTTP error: status={}, body={}", e.getStatusCode().value(), e.getResponseBodyAsString());
-            throw new IllegalArgumentException("OTP provider rejected the request. Please check the OTP provider configuration.");
+            log.error("2Factor HTTP error: status={}, path={}, body={}",
+                    e.getStatusCode().value(), path, e.getResponseBodyAsString());
+            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                throw new IllegalArgumentException("OTP provider rejected the API credentials or request.");
+            }
+            if (e.getStatusCode().value() == 429) {
+                throw new IllegalArgumentException("OTP service rate limit reached. Please try again later.");
+            }
+            throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
             log.error("2Factor connection error: {}", e.getMessage(), e);
             throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
         }
+    }
+
+    private boolean isSuccessfulVerification(JsonNode response) {
+        if (response.path("verified").isBoolean()) return response.path("verified").asBoolean();
+        if (response.path("isValid").isBoolean()) return response.path("isValid").asBoolean();
+        if (response.path("success").isBoolean()) return response.path("success").asBoolean();
+
+        String status = firstText(response, "Status", "status");
+        String details = firstText(response, "Details", "details");
+        return "Success".equalsIgnoreCase(status)
+                && ("OTP Matched".equalsIgnoreCase(details) || "verified".equalsIgnoreCase(details));
+    }
+
+    private String firstText(JsonNode node, String... names) {
+        for (String name : names) {
+            JsonNode value = node.get(name);
+            if (value != null && !value.isNull()) {
+                String text = value.asText("");
+                if (!text.isBlank()) return text;
+            }
+        }
+        return null;
     }
 
     private void requireConfigured() {
@@ -97,8 +153,13 @@ public class TwoFactorOtpService {
         }
     }
 
-    private String enc(String value) {
-        return UriUtils.encodePathSegment(value, StandardCharsets.UTF_8);
+    private String trimTrailingSlash(String value) {
+        return value == null ? "" : value.replaceAll("/+$", "");
+    }
+
+    private String normalizePath(String value) {
+        if (value == null || value.isBlank()) return "";
+        return value.startsWith("/") ? value : "/" + value;
     }
 
     private String lastFour(String phone) {
