@@ -7,10 +7,10 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface OtpChallengeRepository extends JpaRepository<OtpChallenge, Long> {
-    Optional<OtpChallenge> findTopByPhoneAndPurposeAndVerifiedFalseAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+    Optional<OtpChallenge> findTopByPhoneAndPurposeAndSessionIdIsNotNullAndVerifiedFalseAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
             String phone, String purpose, Instant now);
 
-    Optional<OtpChallenge> findTopByPhoneAndPurposeAndVerifiedTrueAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+    Optional<OtpChallenge> findTopByPhoneAndPurposeAndSessionIdIsNotNullAndVerifiedTrueAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
             String phone, String purpose, Instant now);
 
     Optional<OtpChallenge> findTopByPhoneAndPurposeOrderByCreatedAtDesc(String phone, String purpose);
