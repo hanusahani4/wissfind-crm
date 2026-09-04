@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -45,20 +45,14 @@ interface SellerApplication {
           <div><b>04</b><span>Start selling</span></div>
         </div>
       </div>
-
       <section class="card">
         <div class="card-head">
-          <div>
-            <p class="eyebrow">SELLER ONBOARDING</p>
-            <h2>{{ submitted ? 'Application submitted' : 'Create seller account' }}</h2>
-          </div>
+          <div><p class="eyebrow">SELLER ONBOARDING</p><h2>{{ submitted ? 'Application submitted' : 'Create seller account' }}</h2></div>
           <span *ngIf="submitted" class="status pending">Pending review</span>
         </div>
-
         <ng-container *ngIf="submitted; else form">
           <div class="success">
-            <div class="success-icon">✓</div>
-            <h3>Application received</h3>
+            <div class="success-icon">✓</div><h3>Application received</h3>
             <p>Your seller application <strong>{{ application?.id }}</strong> has been submitted for admin verification.</p>
             <div class="summary">
               <div><small>Store</small><strong>{{ application?.storeName }}</strong></div>
@@ -69,7 +63,6 @@ interface SellerApplication {
             <div class="actions"><a routerLink="/" class="secondary">Back to shopping</a><button class="primary" (click)="loadExisting()">View application</button></div>
           </div>
         </ng-container>
-
         <ng-template #form>
           <div *ngIf="error" class="error">{{ error }}</div>
           <form (ngSubmit)="submit()" #sellerForm="ngForm">
@@ -82,27 +75,9 @@ interface SellerApplication {
               <label>Category<select name="category" [(ngModel)]="formData.category" required><option value="">Select category</option><option *ngFor="let c of categories" [value]="c">{{ c }}</option></select></label>
               <label>Business type<select name="businessType" [(ngModel)]="formData.businessType" required><option value="">Select type</option><option *ngFor="let b of businessTypes" [value]="b">{{ b }}</option></select></label>
             </div>
-
-            <h3>KYC details</h3>
-            <div class="grid">
-              <label>PAN<input name="pan" [(ngModel)]="formData.pan" required maxlength="10" placeholder="ABCDE1234F"></label>
-              <label>GSTIN <span class="optional">Optional</span><input name="gstin" [(ngModel)]="formData.gstin" maxlength="15" placeholder="22ABCDE1234F1Z5"></label>
-            </div>
-
-            <h3>Pickup address</h3>
-            <div class="grid">
-              <label class="full">Address<input name="pickupAddress" [(ngModel)]="formData.pickupAddress" required placeholder="Pickup / warehouse address"></label>
-              <label>City<input name="city" [(ngModel)]="formData.city" required></label>
-              <label>State<input name="state" [(ngModel)]="formData.state" required></label>
-              <label>PIN code<input name="pincode" [(ngModel)]="formData.pincode" required maxlength="6"></label>
-            </div>
-
-            <h3>Bank details</h3>
-            <div class="grid">
-              <label>Bank account number<input name="bankAccount" [(ngModel)]="formData.bankAccount" required></label>
-              <label>IFSC<input name="ifsc" [(ngModel)]="formData.ifsc" required maxlength="11" placeholder="SBIN0001234"></label>
-            </div>
-
+            <h3>KYC details</h3><div class="grid"><label>PAN<input name="pan" [(ngModel)]="formData.pan" required maxlength="10" placeholder="ABCDE1234F"></label><label>GSTIN <span class="optional">Optional</span><input name="gstin" [(ngModel)]="formData.gstin" maxlength="15" placeholder="22ABCDE1234F1Z5"></label></div>
+            <h3>Pickup address</h3><div class="grid"><label class="full">Address<input name="pickupAddress" [(ngModel)]="formData.pickupAddress" required placeholder="Pickup / warehouse address"></label><label>City<input name="city" [(ngModel)]="formData.city" required></label><label>State<input name="state" [(ngModel)]="formData.state" required></label><label>PIN code<input name="pincode" [(ngModel)]="formData.pincode" required maxlength="6"></label></div>
+            <h3>Bank details</h3><div class="grid"><label>Bank account number<input name="bankAccount" [(ngModel)]="formData.bankAccount" required></label><label>IFSC<input name="ifsc" [(ngModel)]="formData.ifsc" required maxlength="11" placeholder="SBIN0001234"></label></div>
             <label class="agree"><input type="checkbox" name="terms" [(ngModel)]="terms"> I confirm that the information provided is accurate and I agree to the seller terms.</label>
             <button class="primary submit" type="submit" [disabled]="!sellerForm.valid || !terms">Submit seller application →</button>
             <p class="muted center">Already a seller? <a routerLink="/login">Login</a></p>
@@ -119,19 +94,11 @@ interface SellerApplication {
 export class SellerRegisterComponent implements OnDestroy {
   categories = ['Fashion','Electronics','Home & Living','Beauty','Sports & Fitness','Books & Stationery','Grocery','Travel'];
   businessTypes = ['Individual / Proprietorship','Partnership','Private Limited','LLP','Company','Other'];
-  terms = false;
-  submitted = false;
-  error = '';
-  application: SellerApplication | null = null;
-  formData: Omit<SellerApplication,'id'|'userId'|'submittedAt'|'status'> = {
-    name:'',phone:'',email:'',storeName:'',category:'',businessType:'',pan:'',gstin:'',
-    pickupAddress:'',city:'',state:'',pincode:'',bankAccount:'',ifsc:''
-  };
-
+  terms = false; submitted = false; error = ''; application: SellerApplication | null = null;
+  formData: Omit<SellerApplication,'id'|'userId'|'submittedAt'|'status'> = {name:'',phone:'',email:'',storeName:'',category:'',businessType:'',pan:'',gstin:'',pickupAddress:'',city:'',state:'',pincode:'',bankAccount:'',ifsc:''};
   private readonly pageAbort = new AbortController();
 
-  constructor(private auth: AuthService, private router: Router, private api: BackendApiService) { this.loadExisting(); }
-
+  constructor(private auth: AuthService, private router: Router, private api: BackendApiService, private cdr: ChangeDetectorRef) { this.loadExisting(); }
   ngOnDestroy() { this.pageAbort.abort(); }
 
   async loadExisting() {
@@ -140,21 +107,21 @@ export class SellerRegisterComponent implements OnDestroy {
     try {
       const found:any = await this.api.get('/sellers/applications/me', this.pageAbort.signal);
       if (found) { this.application = {...found, id: found.id?.toString(), userId: user.id, submittedAt: found.createdAt}; this.submitted = true; }
-    } catch {}
+    } catch {} finally { this.cdr.markForCheck(); }
   }
 
   async submit() {
-    this.error = '';
+    this.error = ''; this.cdr.markForCheck();
     const user = this.auth.user();
     if (!user) { await this.router.navigate(['/login'], {queryParams:{returnUrl:'/seller/register'}}); return; }
-    if (!this.terms) { this.error = 'Please accept the seller terms.'; return; }
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(this.formData.pan)) { this.error = 'Please enter a valid PAN.'; return; }
-    if (!/^[0-9]{6}$/.test(this.formData.pincode)) { this.error = 'Please enter a valid 6-digit PIN code.'; return; }
+    if (!this.terms) { this.error = 'Please accept the seller terms.'; this.cdr.markForCheck(); return; }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(this.formData.pan)) { this.error = 'Please enter a valid PAN.'; this.cdr.markForCheck(); return; }
+    if (!/^[0-9]{6}$/.test(this.formData.pincode)) { this.error = 'Please enter a valid 6-digit PIN code.'; this.cdr.markForCheck(); return; }
     try {
       const created:any = await this.api.post('/sellers/applications', {ownerName:this.formData.name, phone:this.formData.phone, email:this.formData.email, storeName:this.formData.storeName, category:this.formData.category, businessType:this.formData.businessType, pan:this.formData.pan.toUpperCase(), gstin:this.formData.gstin?.toUpperCase(), pickupAddress:this.formData.pickupAddress, city:this.formData.city, state:this.formData.state, pincode:this.formData.pincode, bankAccount:this.formData.bankAccount, ifsc:this.formData.ifsc.toUpperCase()}, this.pageAbort.signal);
-      this.application = {...created, id:String(created.id), userId:user.id, submittedAt:created.createdAt};
-      this.submitted = true;
+      this.application = {...created, id:String(created.id), userId:user.id, submittedAt:created.createdAt}; this.submitted = true;
     } catch (e:any) { this.error = e?.error?.error || e?.message || 'Unable to submit seller application.'; }
+    finally { this.cdr.markForCheck(); }
   }
 
 }
