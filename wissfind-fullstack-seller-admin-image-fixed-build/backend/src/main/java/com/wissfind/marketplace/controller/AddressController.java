@@ -46,6 +46,7 @@ public class AddressController {
         CustomerAddress address = new CustomerAddress();
         copy(address, request, pin);
         address.customer = customer;
+        address.pinVerified = true;
         address.defaultAddress = request.defaultAddress() || repo.countByCustomerId(customer.id) == 0;
         if (address.defaultAddress) clearDefaults(customer.id, null);
         return repo.save(address);
@@ -59,6 +60,7 @@ public class AddressController {
                 .orElseThrow(() -> new IllegalArgumentException("Address not found"));
         var pin = pincodeService.lookup(request.pincode());
         copy(address, request, pin);
+        address.pinVerified = true;
         if (request.defaultAddress()) {
             clearDefaults(CurrentUser.id(), id);
             address.defaultAddress = true;
