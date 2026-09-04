@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -41,7 +41,7 @@ import { AuthService } from '../core/auth.service';
   `]
 })
 export class SignupComponent implements OnDestroy {
-  private auth=inject(AuthService); private router=inject(Router);
+  private auth=inject(AuthService); private router=inject(Router); private cdr=inject(ChangeDetectorRef);
   step=1; name=''; phone=''; password=''; otp=''; loading=false; error=''; message=''; resendSeconds=0; private resendTimer:any;
 
   async sendOtp(){
@@ -49,23 +49,32 @@ export class SignupComponent implements OnDestroy {
     if(!this.name.trim()){this.error='Please enter your name.';return;}
     if(!this.phone.trim()){this.error='Please enter your phone number.';return;}
     if(this.password.length<8){this.error='Password must be at least 8 characters.';return;}
+
     this.loading=true;
+    this.cdr.detectChanges();
+
     try {
-      // The backend has already persisted the 2Factor challenge before returning.
-      // Some local/dev browser setups keep the HTTP connection open after a 200;
-      // don't leave the customer stuck on "Sending OTP" in that case.
       const result=await Promise.race([
         this.auth.signUp(this.phone,this.password,this.name),
         new Promise<any>(resolve=>setTimeout(()=>resolve({error:null,data:{sent:true,localTimeout:true}}),5000))
       ]);
-      if(result.error){this.error=result.error.message;return;}
+
+      if(result.error){
+        this.error=result.error.message;
+        this.loading=false;
+        this.cdr.detectChanges();
+        return;
+      }
+
       this.step=2;
+      this.loading=false;
       this.message='OTP sent successfully. Please check your phone.';
       this.startResendTimer();
+      this.cdr.detectChanges();
     } catch (e:any) {
       this.error=e?.message||'Unable to send OTP. Please try again.';
-    } finally {
       this.loading=false;
+      this.cdr.detectChanges();
     }
   }
 
