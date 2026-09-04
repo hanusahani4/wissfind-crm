@@ -1,4 +1,73 @@
-package com.wissfind.marketplace.controller; import com.wissfind.marketplace.service.AuthService; import jakarta.validation.constraints.*; import java.util.*; import org.springframework.web.bind.annotation.*;
-@RestController @RequestMapping("/api/auth") public class AuthController {final AuthService a; public AuthController(AuthService a){this.a=a;} record Otp(@NotBlank String phone,@NotBlank String purpose){} record Register(@NotBlank String phone,@NotBlank @Size(min=8)String password,@NotBlank String name,@NotBlank String otp){} record Login(@NotBlank String phone,@NotBlank String password){} record Reset(@NotBlank String phone,@NotBlank String otp,@NotBlank @Size(min=8)String password){}
- @PostMapping("/otp/send") public Object send(@RequestBody Otp r){return a.sendOtp(r.phone(),r.purpose());} @PostMapping("/otp/verify") public Object verify(@RequestBody OtpVerify r){return a.verifyOtp(r.phone(),r.otp(),r.purpose());} record OtpVerify(String phone,String otp,String purpose){}
- @PostMapping("/register") public Object reg(@RequestBody Register r){return a.register(r.phone(),r.password(),r.name(),r.otp());} @PostMapping("/login") public Object login(@RequestBody Login r){return a.login(r.phone(),r.password());} @GetMapping("/me") public Object me(){return a.token(a.currentUser());} @PostMapping("/reset-password") public Object reset(@RequestBody Reset r){a.resetPassword(r.phone(),r.otp(),r.password());return Map.of("message","Password updated");}}
+package com.wissfind.marketplace.controller;
+
+import com.wissfind.marketplace.service.AuthService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    private final AuthService auth;
+
+    public AuthController(AuthService auth) {
+        this.auth = auth;
+    }
+
+    record Otp(
+            @NotBlank String phone,
+            @NotBlank @Pattern(regexp = "SIGNUP|RESET") String purpose) {}
+
+    record OtpVerify(
+            @NotBlank String phone,
+            @NotBlank @Size(min = 4, max = 8) String otp,
+            @NotBlank @Pattern(regexp = "SIGNUP|RESET") String purpose) {}
+
+    record Register(
+            @NotBlank String phone,
+            @NotBlank @Size(min = 8) String password,
+            @NotBlank @Size(max = 100) String name) {}
+
+    record Login(
+            @NotBlank String phone,
+            @NotBlank String password) {}
+
+    record Reset(
+            @NotBlank String phone,
+            @NotBlank @Size(min = 8) String password) {}
+
+    @PostMapping("/otp/send")
+    public Object send(@Valid @RequestBody Otp r) {
+        return auth.sendOtp(r.phone(), r.purpose());
+    }
+
+    @PostMapping("/otp/verify")
+    public Object verify(@Valid @RequestBody OtpVerify r) {
+        return auth.verifyOtp(r.phone(), r.otp(), r.purpose());
+    }
+
+    @PostMapping("/register")
+    public Object register(@Valid @RequestBody Register r) {
+        return auth.register(r.phone(), r.password(), r.name());
+    }
+
+    @PostMapping("/login")
+    public Object login(@Valid @RequestBody Login r) {
+        return auth.login(r.phone(), r.password());
+    }
+
+    @GetMapping("/me")
+    public Object me() {
+        return auth.token(auth.currentUser());
+    }
+
+    @PostMapping("/reset-password")
+    public Object reset(@Valid @RequestBody Reset r) {
+        auth.resetPassword(r.phone(), r.password());
+        return Map.of("message", "Password updated");
+    }
+}
