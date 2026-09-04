@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, ApplicationRef } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, fromEvent } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -6,6 +6,7 @@ import { takeUntil } from 'rxjs/operators';
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
   private readonly http = inject(HttpClient);
+  private readonly appRef = inject(ApplicationRef);
   readonly baseUrl = 'http://localhost:8080/api';
 
   private authHeaders(): HttpHeaders {
@@ -16,13 +17,55 @@ export class BackendApiService {
   }
 
   /**
+   * Angular 22 is using zoneless change detection in this application.
+   * API promises can therefore complete without automatically refreshing
+   * templates that are driven by ordinary component fields. Trigger one
+   * application refresh after every API completion so async state changes
+   * are reflected consistently across the customer/admin/seller screens.
+   */
+  private refreshView(): void {
+    queueMicrotask(() => {
+      try {
+        this.appRef.tick();
+      } catch {
+        // Ignore a refresh error; the original API result must not be changed.
+      }
+    });
+  }
+
+  /**
    * Every request can be cancelled by the page that created it.
    * This is important when navigating away from a slow page.
    */
   private request<T>(source: any, signal?: AbortSignal): Promise<T> {
-    if (!signal) return firstValueFrom(source);
-    if (signal.aborted) return Promise.reject(new DOMException('Request aborted', 'AbortError'));
-    return firstValueFrom(source.pipe(takeUntil(fromEvent(signal, 'abort'))));
+    if (!signal) {
+      return firstValueFrom(source).then(
+        value => {
+          this.refreshView();
+          return value;
+        },
+        error => {
+          this.refreshView();
+          throw error;
+        }
+      );
+    }
+
+    if (signal.aborted) {
+      this.refreshView();
+      return Promise.reject(new DOMException('Request aborted', 'AbortError'));
+    }
+
+    return firstValueFrom(source.pipe(takeUntil(fromEvent(signal, 'abort')))).then(
+      value => {
+        this.refreshView();
+        return value;
+      },
+      error => {
+        this.refreshView();
+        throw error;
+      }
+    );
   }
 
   get<T>(path: string, signal?: AbortSignal): Promise<T> {
