@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:mysql://gateway01.us-east-1.prod.aws.tidbcloud.com:4000/wissfind?useSSL=true&requireSSL=true&serverTimezone=Asia/Kolkata
-    username: oUxEUUYLQY8gA2A.root
-    password: N47JhKnuvs9q7k9d
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -28,14 +28,17 @@ app:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:10}
-    expose-dev: ${OTP_EXPOSE_DEV:true}
+    expose-dev: false
+    provider: 2FACTOR
+    api-key: ${TWOFACTOR_API_KEY:}
+    base-url: ${TWOFACTOR_BASE_URL:https://2factor.in/API/V1}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-
 
 payment:
   razorpay:
