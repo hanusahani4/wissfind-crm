@@ -5,12 +5,10 @@ import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.repo.OtpChallengeRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.security.JwtService;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -18,217 +16,219 @@ import java.util.Map;
 
 @Service
 public class AuthService {
+    private static final String SIGNUP = "SIGNUP";
+    private static final String RESET = "RESET";
 
- private final UserRepository users;
- private final OtpChallengeRepository otps;
- private final PasswordEncoder encoder;
- private final JwtService jwt;
+    private final UserRepository users;
+    private final OtpChallengeRepository otps;
+    private final PasswordEncoder encoder;
+    private final JwtService jwt;
+    private final TwoFactorOtpService twoFactor;
+    private final long ttlMinutes;
+    private final long resendCooldownSeconds;
 
- private final SecureRandom random = new SecureRandom();
- private final boolean exposeDev;
- private final long ttlMinutes;
+    public AuthService(
+            UserRepository u,
+            OtpChallengeRepository o,
+            PasswordEncoder e,
+            JwtService j,
+            TwoFactorOtpService twoFactor,
+            @Value("${app.otp.ttl-minutes:10}") long ttlMinutes,
+            @Value("${app.otp.resend-cooldown-seconds:60}") long resendCooldownSeconds) {
+        this.users = u;
+        this.otps = o;
+        this.encoder = e;
+        this.jwt = j;
+        this.twoFactor = twoFactor;
+        this.ttlMinutes = ttlMinutes;
+        this.resendCooldownSeconds = resendCooldownSeconds;
+    }
 
- public AuthService(
-         UserRepository u,
-         OtpChallengeRepository o,
-         PasswordEncoder e,
-         JwtService j,
-         @Value("${app.otp.expose-dev:true}") boolean exposeDev,
-         @Value("${app.otp.ttl-minutes:10}") long ttlMinutes
- ) {
-  this.users = u;
-  this.otps = o;
-  this.encoder = e;
-  this.jwt = j;
-  this.exposeDev = exposeDev;
-  this.ttlMinutes = ttlMinutes;
- }
+    public Map<String, Object> sendOtp(String phone, String purpose) {
+        String p = norm(phone);
+        String normalizedPurpose = purpose == null ? "" : purpose.trim().toUpperCase();
 
- public Map<String, Object> sendOtp(String phone, String purpose) {
+        if (!SIGNUP.equals(normalizedPurpose) && !RESET.equals(normalizedPurpose)) {
+            throw new IllegalArgumentException("Invalid OTP purpose");
+        }
+        validateIndianPhone(p);
 
-  String p = norm(phone);
+        if (SIGNUP.equals(normalizedPurpose) && users.findByPhone(p).isPresent()) {
+            throw new IllegalArgumentException("Phone already registered");
+        }
 
-  String otp = String.format(
-          "%06d",
-          random.nextInt(1_000_000)
-  );
+        if (RESET.equals(normalizedPurpose) && users.findByPhone(p).isEmpty()) {
+            // Do not reveal whether an account exists.
+            return Map.of("message", "If the account exists, a verification code has been sent.");
+        }
 
-  OtpChallenge c = new OtpChallenge();
-  c.phone = p;
-  c.purpose = purpose;
-  c.otp = otp;
-  c.expiresAt = Instant.now()
-          .plus(Duration.ofMinutes(ttlMinutes));
+        Instant now = Instant.now();
+        OtpChallenge latest = otps.findTopByPhoneAndPurposeOrderByCreatedAtDesc(p, normalizedPurpose).orElse(null);
+        if (latest != null && latest.createdAt != null
+                && latest.createdAt.plusSeconds(resendCooldownSeconds).isAfter(now)) {
+            long remaining = Math.max(1, Duration.between(now, latest.createdAt.plusSeconds(resendCooldownSeconds)).toSeconds());
+            throw new IllegalArgumentException("Please wait " + remaining + " seconds before requesting another OTP");
+        }
 
-  otps.save(c);
+        // A new OTP invalidates any previous pending challenge for this phone/purpose.
+        if (latest != null && !latest.consumed && !latest.verified) {
+            latest.consumed = true;
+            latest.consumedAt = now;
+            otps.save(latest);
+        }
 
-  System.out.println(
-          "[WISSFIND OTP] purpose="
-                  + purpose
-                  + " phone="
-                  + p
-                  + " otp="
-                  + otp
-  );
+        String sessionId = twoFactor.send(p);
 
-  Map<String, Object> out = new LinkedHashMap<>();
+        OtpChallenge challenge = new OtpChallenge();
+        challenge.phone = p;
+        challenge.purpose = normalizedPurpose;
+        challenge.sessionId = sessionId;
+        challenge.expiresAt = now.plus(Duration.ofMinutes(ttlMinutes));
+        challenge.verified = false;
+        challenge.consumed = false;
+        otps.save(challenge);
 
-  out.put(
-          "message",
-          "OTP generated. Configure an SMS provider for delivery."
-  );
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("message", "OTP sent successfully");
+        out.put("purpose", normalizedPurpose);
+        out.put("expiresInSeconds", ttlMinutes * 60);
+        out.put("resendAfterSeconds", resendCooldownSeconds);
+        return out;
+    }
 
-  out.put("purpose", purpose);
+    public Map<String, Object> verifyOtp(String phone, String otp, String purpose) {
+        String p = norm(phone);
+        String normalizedPurpose = purpose == null ? "" : purpose.trim().toUpperCase();
+        validateIndianPhone(p);
 
-  // Development only
-  if (exposeDev) {
-   out.put("devOtp", otp);
-  }
+        if (!SIGNUP.equals(normalizedPurpose) && !RESET.equals(normalizedPurpose)) {
+            throw new IllegalArgumentException("Invalid OTP purpose");
+        }
+        if (otp == null || !otp.matches("\\d{4,8}")) {
+            throw new IllegalArgumentException("Enter a valid OTP");
+        }
 
-  return out;
- }
+        Instant now = Instant.now();
+        OtpChallenge challenge = otps
+                .findTopByPhoneAndPurposeAndVerifiedFalseAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                        p, normalizedPurpose, now)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired OTP"));
 
- public Map<String, Object> verifyOtp(
-         String phone,
-         String otp,
-         String purpose
- ) {
+        twoFactor.verify(challenge.sessionId, otp.trim());
 
-  OtpChallenge c = otps.findAll()
-          .stream()
-          .filter(x ->
-                  x.phone.equals(norm(phone))
-                          && x.purpose.equals(purpose)
-                          && !x.verified
-                          && x.expiresAt.isAfter(Instant.now())
-          )
-          .reduce((a, b) -> b)
-          .orElse(null);
+        challenge.verified = true;
+        challenge.verifiedAt = now;
+        otps.save(challenge);
 
-  if (c == null || !c.otp.equals(otp)) {
-   throw new IllegalArgumentException(
-           "Invalid or expired OTP"
-   );
-  }
+        return Map.of("verified", true);
+    }
 
-  c.verified = true;
-  otps.save(c);
+    public Map<String, Object> register(String phone, String password, String name) {
+        String p = norm(phone);
+        validateIndianPhone(p);
+        validatePassword(password);
 
-  return Map.of("verified", true);
- }
+        Instant now = Instant.now();
+        OtpChallenge challenge = otps
+                .findTopByPhoneAndPurposeAndVerifiedTrueAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                        p, SIGNUP, now)
+                .orElseThrow(() -> new IllegalArgumentException("Phone verification is required"));
 
- public Map<String, Object> register(
-         String phone,
-         String password,
-         String name,
-         String otp
- ) {
+        if (users.findByPhone(p).isPresent()) {
+            throw new IllegalArgumentException("Phone already registered");
+        }
 
-  verifyOtp(phone, otp, "SIGNUP");
+        User u = new User();
+        u.phone = p;
+        u.name = name == null ? "" : name.trim();
+        if (u.name.isBlank()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+        u.passwordHash = encoder.encode(password);
+        u.phoneVerified = true;
+        u.role = User.Role.CUSTOMER;
+        users.save(u);
 
-  if (users.findByPhone(norm(phone)).isPresent()) {
-   throw new IllegalArgumentException(
-           "Phone already registered"
-   );
-  }
+        // Consume the verified signup challenge so it cannot create another account.
+        challenge.consumed = true;
+        challenge.consumedAt = now;
+        otps.save(challenge);
 
-  User u = new User();
+        return token(u);
+    }
 
-  u.phone = norm(phone);
-  u.name = name;
-  u.passwordHash = encoder.encode(password);
-  u.phoneVerified = true;
-  u.role = User.Role.CUSTOMER;
+    public Map<String, Object> login(String phone, String password) {
+        User u = users.findByPhone(norm(phone))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid phone or password"));
 
-  users.save(u);
+        if (!encoder.matches(password, u.passwordHash)) {
+            throw new IllegalArgumentException("Invalid phone or password");
+        }
 
-  return token(u);
- }
+        return token(u);
+    }
 
- public Map<String, Object> login(
-         String phone,
-         String password
- ) {
+    public void resetPassword(String phone, String password) {
+        String p = norm(phone);
+        validateIndianPhone(p);
+        validatePassword(password);
 
-  User u = users.findByPhone(norm(phone))
-          .orElseThrow(() ->
-                  new IllegalArgumentException(
-                          "Invalid phone or password"
-                  )
-          );
+        Instant now = Instant.now();
+        OtpChallenge challenge = otps
+                .findTopByPhoneAndPurposeAndVerifiedTrueAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                        p, RESET, now)
+                .orElseThrow(() -> new IllegalArgumentException("Reset session expired. Please request a new OTP."));
 
-  if (!encoder.matches(password, u.passwordHash)) {
-   throw new IllegalArgumentException(
-           "Invalid phone or password"
-   );
-  }
+        User u = users.findByPhone(p)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
-  return token(u);
- }
+        u.passwordHash = encoder.encode(password);
+        users.save(u);
 
- public void resetPassword(
-         String phone,
-         String otp,
-         String password
- ) {
+        challenge.consumed = true;
+        challenge.consumedAt = now;
+        otps.save(challenge);
+    }
 
-  String normalizedPhone = norm(phone);
-  OtpChallenge challenge = otps.findAll().stream()
-          .filter(x -> normalizedPhone.equals(x.phone))
-          .filter(x -> "RESET".equals(x.purpose))
-          .filter(x -> x.verified)
-          .filter(x -> x.expiresAt != null && x.expiresAt.isAfter(Instant.now()))
-          .filter(x -> x.otp.equals(otp))
-          .reduce((a, b) -> b)
-          .orElseThrow(() -> new IllegalArgumentException("Invalid or expired OTP"));
+    private void validatePassword(String password) {
+        if (password == null || password.length() < 8) {
+            throw new IllegalArgumentException("Password must contain at least 8 characters");
+        }
+    }
 
-  User u = users.findByPhone(normalizedPhone)
-          .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    private void validateIndianPhone(String phone) {
+        if (!phone.matches("\\+91[6-9]\\d{9}")) {
+            throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number");
+        }
+    }
 
-  if (password == null || password.length() < 6) {
-   throw new IllegalArgumentException("Password must contain at least 6 characters");
-  }
+    public User currentUser() {
+        return users.findById(CurrentUser.id()).orElseThrow();
+    }
 
-  u.passwordHash = encoder.encode(password);
-  users.save(u);
+    public Map<String, Object> token(User u) {
+        return Map.of(
+                "token", jwt.generate(u.id, u.phone, u.role.name()),
+                "user", Map.of(
+                        "id", u.id,
+                        "name", u.name,
+                        "phone", u.phone,
+                        "role", u.role.name()
+                )
+        );
+    }
 
-  challenge.verified = true;
-  otps.save(challenge);
- }
-
- public User currentUser() {
-
-  return users.findById(CurrentUser.id())
-          .orElseThrow();
- }
-
- public Map<String, Object> token(User u) {
-
-  return Map.of(
-          "token",
-          jwt.generate(
-                  u.id,
-                  u.phone,
-                  u.role.name()
-          ),
-
-          "user",
-          Map.of(
-                  "id", u.id,
-                  "name", u.name,
-                  "phone", u.phone,
-                  "role", u.role.name()
-          )
-  );
- }
-
- public static String norm(String p) {
-
-  String s = p.trim()
-          .replaceAll("\\D", "");
-
-  return s.startsWith("91")
-          ? "+" + s
-          : "+91" + s;
- }
+    public static String norm(String p) {
+        if (p == null) {
+            throw new IllegalArgumentException("Phone number is required");
+        }
+        String s = p.trim().replaceAll("\\D", "");
+        if (s.startsWith("91") && s.length() == 12) {
+            return "+" + s;
+        }
+        if (s.length() == 10) {
+            return "+91" + s;
+        }
+        return "+" + s;
+    }
 }
