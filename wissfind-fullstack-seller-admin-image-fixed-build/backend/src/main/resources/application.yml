@@ -33,7 +33,9 @@ app:
     expose-dev: false
     provider: 2FACTOR
     api-key: ${TWOFACTOR_API_KEY:}
-    base-url: ${TWOFACTOR_BASE_URL:https://2factor.in/API/V1}
+    base-url: ${TWOFACTOR_BASE_URL:https://api.2factor.in/v1}
+    send-path: ${TWOFACTOR_SEND_PATH:/sms/otp}
+    verify-path: ${TWOFACTOR_VERIFY_PATH:/sms/otp/verify}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
 
 management:
