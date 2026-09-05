@@ -11,34 +11,31 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
+import java.security.SecureRandom;
+import java.util.UUID;
 
 @Service
 public class TwoFactorOtpService {
     private static final Logger log = LoggerFactory.getLogger(TwoFactorOtpService.class);
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public record SendResult(String sessionId, String otp, String status, String details) {}
 
     private final RestClient client;
     private final ObjectMapper mapper;
-    private final String apiKey;
+    private final String authorization;
+    private final String senderId;
     private final String baseUrl;
-    private final String sendPath;
-    private final String verifyPath;
-    private final String templateName;
 
     public TwoFactorOtpService(
             ObjectMapper mapper,
-            @Value("${app.otp.api-key:}") String apiKey,
-            @Value("${app.otp.base-url:https://2factor.in}") String baseUrl,
-            @Value("${app.otp.send-path:/API/V1/{api_key}/SMS/{phone_number}/AUTOGEN2/{otp_template_name}}") String sendPath,
-            @Value("${app.otp.verify-path:/API/V1/{api_key}/SMS/VERIFY/{session_id}/{otp}}") String verifyPath,
-            @Value("${app.otp.template-name:OTP1}") String templateName) {
+            @Value("${app.otp.ninza.authorization:}") String authorization,
+            @Value("${app.otp.ninza.sender-id:}") String senderId,
+            @Value("${app.otp.ninza.base-url:https://ninzasms.in.net/auth/send_sms.php}") String baseUrl) {
         this.mapper = mapper;
-        this.apiKey = apiKey;
-        this.baseUrl = trimTrailingSlash(baseUrl);
-        this.sendPath = normalizePath(sendPath);
-        this.verifyPath = normalizePath(verifyPath);
-        this.templateName = templateName;
+        this.authorization = authorization;
+        this.senderId = senderId;
+        this.baseUrl = baseUrl == null ? "" : baseUrl.trim();
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
@@ -48,111 +45,79 @@ public class TwoFactorOtpService {
 
     public SendResult send(String phone) {
         requireConfigured();
-        log.info("OTP send requested for phone ending {}", lastFour(phone));
 
-        String url = buildSendUrl(phone);
+        String normalizedPhone = normalizePhone(phone);
+        String otp = generateOtp();
+        String requestId = UUID.randomUUID().toString();
+
+        log.info("Ninza OTP send requested for phone ending {}", lastFour(normalizedPhone));
+
         try {
-            String body = client.get()
-                    .uri(URI.create(url))
+            String body = client.post()
+                    .uri(URI.create(baseUrl))
+                    .header("Authorization", authorization)
+                    .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
+                    .body(new SendRequest(senderId, normalizedPhone, "sms", otp))
                     .retrieve()
                     .body(String.class);
 
             JsonNode response = parseResponse(body);
-            String status = firstText(response, "Status", "status");
-            String sessionId = firstText(response, "Details", "details", "session_id", "sessionId", "UID", "uid");
-            String providerOtp = firstText(response, "OTP", "otp");
+            String status = firstText(response, "Status", "status", "success");
+            String details = firstText(response, "Details", "details", "message", "Message", "error", "Error");
 
-            if (!isSuccessfulSend(status) || sessionId == null || sessionId.isBlank()) {
-                String message = firstText(response, "Details", "details", "message", "Message", "error", "Error");
-                throw new IllegalArgumentException(message == null || message.isBlank()
-                        ? "Unable to send OTP."
-                        : "Unable to send OTP: " + message);
+            // Ninza's successful HTTP response is the provider acceptance signal.
+            // Keep the response parsing tolerant because account/API response fields may vary.
+            if (response.path("success").isBoolean() && !response.path("success").asBoolean()) {
+                throw new IllegalArgumentException(details == null ? "Unable to send OTP." : "Unable to send OTP: " + details);
+            }
+            if ("false".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)
+                    || "failure".equalsIgnoreCase(status) || "error".equalsIgnoreCase(status)) {
+                throw new IllegalArgumentException(details == null ? "Unable to send OTP." : "Unable to send OTP: " + details);
             }
 
-            log.info("2Factor AUTOGEN2 OTP send accepted: status={}, sessionPresent={}, otpPresent={}",
-                    status, true, providerOtp != null && !providerOtp.isBlank());
-            return new SendResult(sessionId, providerOtp, status, firstText(response, "Details", "details"));
+            log.info("Ninza OTP send accepted: status={}, requestId={}", status == null ? "HTTP_SUCCESS" : status, requestId);
+            return new SendResult(requestId, otp, status == null ? "Success" : status, details);
         } catch (RestClientResponseException e) {
-            log.error("2Factor OTP send HTTP error: status={}", e.getStatusCode().value());
+            log.error("Ninza OTP send HTTP error: status={}", e.getStatusCode().value());
             throw providerHttpError(e.getStatusCode().value());
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            log.error("2Factor OTP send connection error: {}", e.getMessage(), e);
+            log.error("Ninza OTP send connection error: {}", e.getMessage(), e);
             throw new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
         }
     }
 
+    /**
+     * Ninza does not require a provider-side verification call for this flow.
+     * The generated six-digit OTP is stored in the OTP challenge and compared by AuthService.
+     */
     public void verify(String sessionId, String otp) {
-        requireConfigured();
-        if (sessionId == null || sessionId.isBlank() || otp == null || !otp.trim().matches("\\d{4,8}")) {
+        if (sessionId == null || sessionId.isBlank() || otp == null || !otp.trim().matches("\\d{6}")) {
             throw new IllegalArgumentException("Invalid OTP.");
         }
+        log.info("Ninza OTP verification requested");
+    }
 
-        log.info("OTP verification requested");
-        String url = buildVerifyUrl(sessionId.trim(), otp.trim());
-        try {
-            String body = client.get()
-                    .uri(URI.create(url))
-                    .header("Accept", "application/json")
-                    .retrieve()
-                    .body(String.class);
+    private String generateOtp() {
+        return String.format("%06d", RANDOM.nextInt(1_000_000));
+    }
 
-            JsonNode response = parseResponse(body);
-            if (isSuccessfulVerification(response)) {
-                log.info("2Factor OTP verification succeeded");
-                return;
-            }
-        } catch (RestClientResponseException e) {
-            log.warn("2Factor OTP verification HTTP error: status={}", e.getStatusCode().value());
-        } catch (Exception e) {
-            log.error("2Factor OTP verification connection error: {}", e.getMessage());
+    private String normalizePhone(String phone) {
+        if (phone == null) throw new IllegalArgumentException("Phone number is required");
+        String digits = phone.replaceAll("\\D", "");
+        if (digits.startsWith("91") && digits.length() == 12) digits = digits.substring(2);
+        if (digits.length() != 10 || digits.charAt(0) < '6' || digits.charAt(0) > '9') {
+            throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number");
         }
-
-        throw new IllegalArgumentException("Invalid or expired OTP");
-    }
-
-    private String buildSendUrl(String phone) {
-        return baseUrl + sendPath
-                .replace("{api_key}", encodePath(apiKey))
-                .replace("{phone_number}", encodePath(phone))
-                .replace("{otp_template_name}", encodePath(templateName));
-    }
-
-    private String buildVerifyUrl(String sessionId, String otp) {
-        return baseUrl + verifyPath
-                .replace("{api_key}", encodePath(apiKey))
-                .replace("{session_id}", encodePath(sessionId))
-                .replace("{otp}", encodePath(otp));
+        return digits;
     }
 
     private JsonNode parseResponse(String body) throws Exception {
-        if (body == null || body.isBlank()) {
-            throw new IllegalArgumentException("OTP service returned an empty response.");
-        }
+        if (body == null || body.isBlank()) return mapper.createObjectNode();
         JsonNode response = mapper.readTree(body);
-        if (response == null || !response.isObject()) {
-            throw new IllegalArgumentException("OTP service returned an invalid response.");
-        }
-        return response;
-    }
-
-    private boolean isSuccessfulSend(String status) {
-        return "Success".equalsIgnoreCase(status) || "success".equalsIgnoreCase(status)
-                || "sent".equalsIgnoreCase(status);
-    }
-
-    private boolean isSuccessfulVerification(JsonNode response) {
-        if (response == null) return false;
-        if (response.path("verified").isBoolean()) return response.path("verified").asBoolean();
-        if (response.path("isValid").isBoolean()) return response.path("isValid").asBoolean();
-        if (response.path("success").isBoolean()) return response.path("success").asBoolean();
-
-        String status = firstText(response, "Status", "status");
-        String details = firstText(response, "Details", "details", "message", "Message");
-        return ("Success".equalsIgnoreCase(status) || "success".equalsIgnoreCase(status))
-                && (details == null || "OTP Matched".equalsIgnoreCase(details) || "verified".equalsIgnoreCase(details));
+        return response == null || !response.isObject() ? mapper.createObjectNode() : response;
     }
 
     private String firstText(JsonNode node, String... names) {
@@ -167,46 +132,30 @@ public class TwoFactorOtpService {
     }
 
     private void requireConfigured() {
-        if (apiKey == null || apiKey.isBlank()) {
-            log.error("TWOFACTOR_API_KEY is not configured");
-            throw new IllegalStateException("OTP provider is not configured. Set TWOFACTOR_API_KEY.");
+        if (authorization == null || authorization.isBlank()) {
+            log.error("NINZA_SMS_AUTH is not configured");
+            throw new IllegalStateException("OTP provider is not configured. Set NINZA_SMS_AUTH.");
+        }
+        if (senderId == null || senderId.isBlank()) {
+            log.error("NINZA_SMS_SENDER_ID is not configured");
+            throw new IllegalStateException("OTP provider is not configured. Set NINZA_SMS_SENDER_ID.");
         }
     }
 
     private IllegalArgumentException providerHttpError(int status) {
         if (status == 401 || status == 403) {
-            return new IllegalArgumentException("OTP provider rejected the API key or request.");
+            return new IllegalArgumentException("Ninza SMS provider rejected the API authorization.");
         }
         if (status == 429) {
             return new IllegalArgumentException("OTP service rate limit reached. Please try again later.");
         }
-        if (status == 404) {
-            return new IllegalArgumentException("OTP provider endpoint is unavailable. Please check the 2Factor API configuration.");
-        }
         return new IllegalArgumentException("OTP service is temporarily unavailable. Please try again.");
-    }
-
-    private String trimTrailingSlash(String value) {
-        return value == null ? "" : value.replaceAll("/+$", "");
-    }
-
-    private String normalizePath(String value) {
-        if (value == null || value.isBlank()) return "";
-        return value.startsWith("/") ? value : "/" + value;
-    }
-
-    private String encodePath(String value) {
-        if (value == null) return "";
-        return value
-                .replace("%", "%25")
-                .replace("/", "%2F")
-                .replace("?", "%3F")
-                .replace("#", "%23")
-                .replace(" ", "%20");
     }
 
     private String lastFour(String phone) {
         if (phone == null || phone.length() < 4) return "****";
         return phone.substring(phone.length() - 4);
     }
+
+    private record SendRequest(String sender_id, String numbers, String rout, String variables_values) {}
 }
