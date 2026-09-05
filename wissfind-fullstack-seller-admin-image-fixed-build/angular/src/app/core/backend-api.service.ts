@@ -98,9 +98,17 @@ export class BackendApiService {
     }), signal);
   }
 
-  delete<T = void>(path: string, signal?: AbortSignal): Promise<T> {
+  delete<T = void>(path: string): Promise<T> {
     return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, {
       headers: this.authHeaders()
+    }));
+  }
+
+  /** Download an authenticated binary response such as a PDF shipping label. */
+  getBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+    return this.request(this.http.get(`${this.baseUrl}${path}`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
     }), signal);
   }
 
