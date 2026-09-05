@@ -107,7 +107,7 @@ import { ProductReview, ReviewService } from '../core/review.service';
               <a [href]="whatsappUrl" target="_blank" rel="noopener">WhatsApp</a>
               <button *ngIf="canNativeShare" (click)="nativeShare()">Share image + link</button>
             </div>
-            <small>Choose any product image above before using native share. Social links share the product page URL.</small>
+            <small>Social links share the product page URL. Native share can include the selected product image.</small>
           </div>
         </div>
       </section>
@@ -822,8 +822,14 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return Math.max(0, this.product?.images?.indexOf(this.selectedImage) ?? 0);
   }
 
+  /**
+   * Share the Angular product route, not the current backend/API URL.
+   * Using window.location.origin means localhost works now and the
+   * production domain is picked up automatically after deployment.
+   */
   get pageUrl() {
-    return typeof window !== 'undefined' ? window.location.href : '';
+    if (typeof window === 'undefined' || !this.product) return '';
+    return `${window.location.origin}/product/${encodeURIComponent(this.product.id)}`;
   }
 
   get facebookUrl() {
@@ -831,11 +837,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   get xUrl() {
-    return `https://twitter.com/intent/post?text=${encodeURIComponent(this.product?.name || '')}&url=${encodeURIComponent(this.pageUrl)}`;
+    return `https://twitter.com/intent/tweet?text=${encodeURIComponent(this.product?.name || '')}&url=${encodeURIComponent(this.pageUrl)}`;
   }
 
   get whatsappUrl() {
-    const text = `${this.product?.name}\n${this.selectedImage}\n${this.pageUrl}`;
+    const text = `${this.product?.name || 'WISSFIND Product'}\n${this.pageUrl}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -1007,7 +1013,7 @@ await this.reviews.addReview({
 
       const data: ShareData = {
         title: this.product.name,
-        text: this.product.name,
+        text: `${this.product.name}\n${this.pageUrl}`,
         url: this.pageUrl
       };
 
