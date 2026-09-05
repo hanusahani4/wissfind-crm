@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { roleGuard } from './core/role.guard';
 import { sharedProductGuard } from './core/shared-product.guard';
+import { razorpayCheckoutGuard } from './core/razorpay-checkout.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent) },
@@ -9,7 +10,7 @@ export const routes: Routes = [
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then(m => m.SignupComponent) },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then(m => m.ForgotPasswordComponent) },
   { path: 'cart', loadComponent: () => import('./pages/cart.component').then(m => m.CartComponent) },
-  { path: 'checkout', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/checkout.component').then(m => m.CheckoutComponent) },
+  { path: 'checkout', canActivate: [roleGuard(['CUSTOMER']), razorpayCheckoutGuard], loadComponent: () => import('./pages/checkout.component').then(m => m.CheckoutComponent) },
   { path: 'orders', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/orders.component').then(m => m.OrdersComponent) },
   { path: 'ai-shop', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/ai-shop.component').then(m => m.AiShopComponent) },
   { path: 'compare', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/compare.component').then(m => m.CompareComponent) },
