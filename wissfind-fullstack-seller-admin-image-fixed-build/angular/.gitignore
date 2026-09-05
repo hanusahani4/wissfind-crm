@@ -1,0 +1,16 @@
+# Angular CLI
+.angular/
+dist/
+node_modules/
+coverage/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
