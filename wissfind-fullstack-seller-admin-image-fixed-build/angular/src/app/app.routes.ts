@@ -1,9 +1,10 @@
 import { Routes } from '@angular/router';
 import { roleGuard } from './core/role.guard';
+import { sharedProductGuard } from './core/shared-product.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent) },
-  { path: 'product/:id', loadComponent: () => import('./pages/product-detail.component').then(m => m.ProductDetailComponent) },
+  { path: 'product/:id', canActivate: [sharedProductGuard], loadComponent: () => import('./pages/product-detail.component').then(m => m.ProductDetailComponent) },
   { path: 'login', loadComponent: () => import('./pages/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then(m => m.SignupComponent) },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then(m => m.ForgotPasswordComponent) },
