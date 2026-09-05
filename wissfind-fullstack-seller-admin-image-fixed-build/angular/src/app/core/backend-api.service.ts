@@ -98,10 +98,10 @@ export class BackendApiService {
     }), signal);
   }
 
-  delete<T = void>(path: string): Promise<T> {
+  delete<T = void>(path: string, signal?: AbortSignal): Promise<T> {
     return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, {
       headers: this.authHeaders()
-    }));
+    }), signal);
   }
 
   /** Download an authenticated binary response such as a PDF shipping label. */
