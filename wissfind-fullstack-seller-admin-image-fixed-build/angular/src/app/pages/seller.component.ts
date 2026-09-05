@@ -51,7 +51,7 @@ import { AuthService } from '../core/auth.service';
 
    <section class="content" *ngIf="section==='Inventory'"><h1>Inventory</h1><div class="panel table"><table><thead><tr><th>Product</th><th>SKU</th><th>Stock</th><th>Status</th><th>Adjust</th></tr></thead><tbody><tr *ngFor="let p of pageOf('inventory', products)"><td>{{p.name}}</td><td>{{p.sku}}</td><td>{{p.stock}}</td><td>{{p.status}}</td><td><button class="link" (click)="adjust(p,1)">+1</button><button class="link" (click)="adjust(p,-1)">-1</button></td></tr></tbody></table><div class="pagination" *ngIf="pageCount('inventory', products.length) > 1"><button (click)="prevPage('inventory')" [disabled]="page('inventory') === 1">← Prev</button><span>Page {{page('inventory')}} of {{pageCount('inventory', products.length)}}</span><button (click)="nextPage('inventory', products.length)" [disabled]="page('inventory') === pageCount('inventory', products.length)">Next →</button></div></div></section>
 
-   <section class="content" *ngIf="section==='Orders'"><h1>Orders</h1><div class="panel table"><table><thead><tr><th>Order</th><th>Customer</th><th>Products</th><th>Amount</th><th>Payment</th><th>Delivery</th><th>Action</th></tr></thead><tbody><ng-container *ngFor="let o of pageOf('orders', orders)"><tr><td><b>{{o.orderNumber}}</b><small>{{o.createdAt|date:'medium'}}</small></td><td>{{o.customer?.name||'Customer'}}</td><td><button class="link" type="button" (click)="toggleOrderDetails(o)">{{expandedOrderId===o.id?'Hide':'View'}} {{(o.items||[]).length}} product{{(o.items||[]).length===1?'':'s'}}</button></td><td>₹{{o.total|number}}</td><td>{{o.paymentStatus}}</td><td>{{o.deliveryStatus}}</td><td><select [value]="o.deliveryStatus" (change)="setOrderStatus(o,$any($event.target).value)" [disabled]="o.deliveryStatus==='Cancelled'"><option>Processing</option><option>Shipped</option><option>Out for Delivery</option><option>Delivered</option><option>Delayed</option></select><button type="button" class="danger-link" *ngIf="canSellerReject(o)" (click)="rejectOrder(o)">Reject order</button></td></tr><tr *ngIf="expandedOrderId===o.id" class="order-items-row"><td colspan="7"><div class="order-items"><strong>Products ordered</strong><div class="order-item" *ngFor="let item of (o.items||[])"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.category||'Product'}} <span *ngIf="item.variant">· {{item.variant}}</span></small></div><span>Qty {{item.quantity}}</span><b>₹{{item.price|number}}</b></div><div class="empty" *ngIf="!(o.items||[]).length">No product snapshot is available for this order.</div></div></td></tr></ng-container></tbody></table><div class="pagination" *ngIf="pageCount('orders', orders.length) > 1"><button (click)="prevPage('orders')" [disabled]="page('orders') === 1">← Prev</button><span>Page {{page('orders')}} of {{pageCount('orders', orders.length)}}</span><button (click)="nextPage('orders', orders.length)" [disabled]="page('orders') === pageCount('orders', orders.length)">Next →</button></div><div class="empty" *ngIf="!orders.length">No orders yet.</div></div></section>
+   <section class="content" *ngIf="section==='Orders'"><h1>Orders</h1><div class="panel table"><table><thead><tr><th>Order</th><th>Customer</th><th>Products</th><th>Amount</th><th>Payment</th><th>Delivery</th><th>Action</th></tr></thead><tbody><ng-container *ngFor="let o of pageOf('orders', orders)"><tr><td><b>{{o.orderNumber}}</b><small>{{o.createdAt|date:'medium'}}</small></td><td>{{o.customer?.name||'Customer'}}</td><td><button class="link" type="button" (click)="toggleOrderDetails(o)">{{expandedOrderId===o.id?'Hide':'View'}} {{(o.items||[]).length}} product{{(o.items||[]).length===1?'':'s'}}</button></td><td>₹{{o.total|number}}</td><td>{{o.paymentStatus}}</td><td>{{o.deliveryStatus}}</td><td><select [value]="o.deliveryStatus" (change)="setOrderStatus(o,$any($event.target).value)" [disabled]="o.deliveryStatus==='Cancelled'"><option>Processing</option><option>Shipped</option><option>Out for Delivery</option><option>Delivered</option><option>Delayed</option></select><button type="button" class="link print-label" *ngIf="isLabelReady(o)" (click)="printShippingLabel(o)">Print Shipping Label</button><button type="button" class="danger-link" *ngIf="canSellerReject(o)" (click)="rejectOrder(o)">Reject order</button></td></tr><tr *ngIf="expandedOrderId===o.id" class="order-items-row"><td colspan="7"><div class="order-items"><strong>Products ordered</strong><div class="order-item" *ngFor="let item of (o.items||[])"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.category||'Product'}} <span *ngIf="item.variant">· {{item.variant}}</span></small></div><span>Qty {{item.quantity}}</span><b>₹{{item.price|number}}</b></div><div class="empty" *ngIf="!(o.items||[]).length">No product snapshot is available for this order.</div></div></td></tr></ng-container></tbody></table><div class="pagination" *ngIf="pageCount('orders', orders.length) > 1"><button (click)="prevPage('orders')" [disabled]="page('orders') === 1">← Prev</button><span>Page {{page('orders')}} of {{pageCount('orders', orders.length)}}</span><button (click)="nextPage('orders', orders.length)" [disabled]="page('orders') === pageCount('orders', orders.length)">Next →</button></div><div class="empty" *ngIf="!orders.length">No orders yet.</div></div></section>
 
    <section class="content" *ngIf="section==='Returns'"><h1>Returns & Refunds</h1><div class="panel table"><table><thead><tr><th>Order</th><th>Reason</th><th>Refund</th><th>Status</th><th>Action</th></tr></thead><tbody><tr *ngFor="let r of pageOf('returns', returns)"><td>{{r.order?.orderNumber}}</td><td>{{r.reason}}</td><td>₹{{r.refundAmount||0|number}}</td><td>{{r.status}}</td><td><select [value]="r.status" (change)="setReturnStatus(r,$any($event.target).value)"><option>REQUESTED</option><option>APPROVED</option><option>PICKUP_SCHEDULED</option><option>PICKED_UP</option><option>REFUND_INITIATED</option><option>REFUND_COMPLETED</option><option>REJECTED</option></select></td></tr></tbody></table><div class="pagination" *ngIf="pageCount('returns', returns.length) > 1"><button (click)="prevPage('returns')" [disabled]="page('returns') === 1">← Prev</button><span>Page {{page('returns')}} of {{pageCount('returns', returns.length)}}</span><button (click)="nextPage('returns', returns.length)" [disabled]="page('returns') === pageCount('returns', returns.length)">Next →</button></div></div></section>
 
@@ -61,7 +61,7 @@ import { AuthService } from '../core/auth.service';
 
    <section class="content" *ngIf="section==='Reviews'"><h1>Customer Reviews</h1><div class="panel table"><table><thead><tr><th>Product</th><th>Customer</th><th>Rating</th><th>Title</th><th>Review</th></tr></thead><tbody><tr *ngFor="let r of pageOf('reviews', reviews)"><td>{{r.productName}}</td><td>{{r.author}}</td><td>★ {{r.rating}}</td><td>{{r.title}}</td><td class="wrap">{{r.text}}</td></tr></tbody></table><div class="pagination" *ngIf="pageCount('reviews', reviews.length) > 1"><button (click)="prevPage('reviews')" [disabled]="page('reviews') === 1">← Prev</button><span>Page {{page('reviews')}} of {{pageCount('reviews', reviews.length)}}</span><button (click)="nextPage('reviews', reviews.length)" [disabled]="page('reviews') === pageCount('reviews', reviews.length)">Next →</button></div><div class="empty" *ngIf="!reviews.length">No reviews yet.</div></div></section>
 
-   <section class="content" *ngIf="section==='Store Profile'||section==='Pickup Address'||section==='Bank Details'||section==='Store Settings'"><div class="title"><div><h1>Store & Pickup Settings</h1><p class="muted">This is the address used for seller pickup/fulfillment.</p></div></div><div class="panel form" *ngIf="application"><form (ngSubmit)="saveSettings()"><div class="grid"><label>Store name<input name="storeName" [(ngModel)]="application.storeName" required></label><label>Owner name<input name="ownerName" [(ngModel)]="application.ownerName" required></label><label>Email<input name="email" type="email" [(ngModel)]="application.email"></label><label>Phone<input name="phone" [(ngModel)]="application.phone" required></label><label class="wide">Pickup / Warehouse address<textarea name="pickupAddress" rows="3" [(ngModel)]="application.pickupAddress" required></textarea></label><label>City<input name="city" [(ngModel)]="application.city" required></label><label>State<input name="state" [(ngModel)]="application.state" required></label><label>PIN code<input name="pincode" maxlength="6" [(ngModel)]="application.pincode" required></label><label>Bank account<input name="bankAccount" [(ngModel)]="application.bankAccount" required></label><label>IFSC<input name="ifsc" [(ngModel)]="application.ifsc" maxlength="11" required></label></div><p class="error" *ngIf="error">{{error}}</p><button class="primary" [disabled]="saving">Save settings</button></form></div></section>
+   <section class="content" *ngIf="section==='Store Profile'||section==='Pickup Address'||section==='Bank Details'||section==='Store Settings'"><div class="title"><div><h1>Store & Pickup Settings</h1><p class="muted">This is the address used for seller pickup/fulfillment.</p></div></div><div class="panel form" *ngIf="application"><form (ngSubmit)="saveSettings()"><div class="grid"><label>Store name<input name="storeName" [(ngModel)]="application.storeName" required></label><label>Owner name<input name="ownerName" [(ngModel)]="application.ownerName" required></label><label>Email<input name="email" type="email" [(ngModel)]="application.email"></label><label>Phone<input name="phone" [(ngModel)]="application.phone" required></label><label class="wide">Pickup / Warehouse address<textarea name="pickupAddress" rows="3" [(ngModel)]="application.pickupAddress" required></textarea></label><label>City<input name="city" [(ngModel)]="application.city" required></label><label>State<input name="state" [(ngModel)]="application.state" required></label><label>PIN code<input name="pincode" maxlength="6" [(ngModel)]="application.pincode" required></label><label>Bank account<input name="bankAccount" [(ngModel)]="application.bankAccount" required></label><label>IFSC<input name="ifsc" maxlength="11" [(ngModel)]="application.ifsc" required></label></div><p class="error" *ngIf="error">{{error}}</p><button class="primary" [disabled]="saving">Save settings</button></form></div></section>
 
    <section class="content" *ngIf="section==='Deliveries'">
     <div class="title"><div><h1>Deliveries</h1><p class="muted">Manage shipment status for your own orders.</p></div><button class="link" (click)="loadOrders()">Refresh</button></div>
@@ -111,6 +111,8 @@ import { AuthService } from '../core/auth.service';
     .order-item small{display:block;color:#667085;margin-top:3px}
     .danger-link{border:0;background:transparent;color:#b42318;cursor:pointer;margin-left:8px;font:inherit}
     .danger-link:hover{text-decoration:underline}
+    .print-label{display:inline-block;margin-top:8px;text-decoration:none!important;font-weight:600}
+    .print-label:hover{text-decoration:underline!important}
 `]
 })
 export class SellerComponent implements OnDestroy {
@@ -255,7 +257,6 @@ export class SellerComponent implements OnDestroy {
         saved=await this.api.upload(`/products/${this.editingId}/images`,fd);
       }
     }else{
-      // Create product + all selected images in one multipart request.
       const fd=new FormData();
       fd.append('product',new Blob([JSON.stringify(payload)],{type:'application/json'}));
       this.selectedFiles.forEach(f=>fd.append('files',f,f.name));
@@ -278,6 +279,30 @@ export class SellerComponent implements OnDestroy {
  async setOrderStatus(o:any,status:string){try{await this.api.patch(`/orders/${o.id}/status`,{}, {value:status});await this.loadOrders(this.listKeyForSection(this.section))}catch(e:any){alert(e?.error?.error||'Unable to update order')}}
  toggleOrderDetails(o:any){this.expandedOrderId=this.expandedOrderId===Number(o.id)?null:Number(o.id);}
  canSellerReject(o:any):boolean{return !!o && Number.isFinite(Number(o.id)) && String(o.deliveryStatus||'').toLowerCase()==='processing';}
+ isLabelReady(o:any):boolean{
+  const status=String(o?.deliveryStatus||'').toLowerCase();
+  return !!o && Number(o.id)>0 && status!=='cancelled' && !!(o.items||[]).length;
+ }
+ async printShippingLabel(o:any){
+  if(!this.isLabelReady(o))return;
+  try{
+   const blob=await this.api.getBlob(`/shipping-labels/order/${o.id}.pdf`,this.requestSignal);
+   if(this.requestSignal.aborted)return;
+   const url=URL.createObjectURL(blob);
+   const win=window.open(url,'_blank','noopener,noreferrer');
+   if(!win){
+    URL.revokeObjectURL(url);
+    alert('Please allow pop-ups to print the shipping label.');
+    return;
+   }
+   window.setTimeout(()=>{
+    try{win.focus();win.print();}catch{}
+   },700);
+   window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e:any){
+   if(!this.requestSignal.aborted)alert(e?.error?.error||e?.error?.message||'Unable to create shipping label');
+  }
+ }
  async rejectOrder(o:any){
   const reason=prompt('Reason for rejecting this order:','Seller rejected the order');
   if(reason===null||!reason.trim())return;
@@ -297,7 +322,6 @@ export class SellerComponent implements OnDestroy {
  async respondDispute(d:any){const response=prompt('Enter response',d.response||'');if(response===null)return;try{await this.api.patch(`/disputes/${d.id}/respond`,{response});await this.loadDisputes()}catch(e:any){alert(e?.error?.error||'Unable to respond')}}
  maskedBank(v:string){if(!v)return '—';return v.length>4?'••••'+v.slice(-4):v}
  imageUrl(v:string){return !v?'':/^https?:\/\//.test(v)?v:`http://localhost:8080${v.startsWith('/')?'':'/'}${v}`}
- // Server-side pagination/search: each page button causes a fresh DB query.
  readonly pageSize=10;
  private pageState:Record<string,number>={};
  private totalState:Record<string,number>={};
