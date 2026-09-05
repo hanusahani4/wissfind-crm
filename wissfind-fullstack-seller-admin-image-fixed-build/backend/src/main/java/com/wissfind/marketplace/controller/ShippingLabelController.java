@@ -26,7 +26,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/shipping-labels")
@@ -39,7 +38,7 @@ public class ShippingLabelController {
         this.applications = applications;
     }
 
-    /** Creates one complete 4x6 printable shipping label page per order. */
+    /** Always creates exactly one printable 4x6 shipping-label page per order. */
     @GetMapping(value = "/order/{orderId}.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @PreAuthorize("hasAnyRole('SELLER','ADMIN')")
     @Transactional(readOnly = true)
@@ -55,10 +54,8 @@ public class ShippingLabelController {
             throw new IllegalArgumentException("No products found in this order");
         }
 
-        SellerApplication seller = order.seller == null
-                ? null
+        SellerApplication seller = order.seller == null ? null
                 : applications.findByUserId(order.seller.id).orElse(null);
-
         byte[] pdf = buildPdf(order, seller);
 
         HttpHeaders headers = new HttpHeaders();
@@ -79,166 +76,165 @@ public class ShippingLabelController {
     private byte[] buildPdf(Order order, SellerApplication seller) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        // Exactly one 4 x 6 inch thermal-label page for the complete order.
-        Document document = new Document(new Rectangle(283.46f, 425.20f), 14, 14, 12, 12);
+        // Exactly one 4 x 6 inch thermal-label page (100 x 150 mm).
+        // Small margins and compact cells keep the complete label on one page.
+        Document document = new Document(new Rectangle(283.46f, 425.20f), 10, 10, 10, 10);
         PdfWriter.getInstance(document, out);
         document.open();
 
-        Font brand = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 19);
-        Font title = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
-        Font heading = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8);
-        Font normal = FontFactory.getFont(FontFactory.HELVETICA, 7);
-        Font bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8);
+        Font title = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 15);
+        Font section = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8);
+        Font value = FontFactory.getFont(FontFactory.HELVETICA, 7);
+        Font valueBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8);
         Font tiny = FontFactory.getFont(FontFactory.HELVETICA, 6.5f);
-        Font cod = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13);
 
-        document.add(new Paragraph("WISSFIND", brand));
-        Paragraph labelTitle = new Paragraph("SHIPPING LABEL", title);
-        labelTitle.setSpacingAfter(5);
+        Paragraph brand = new Paragraph("WISSFIND", title);
+        brand.setLeading(16);
+        brand.setSpacingAfter(0);
+        document.add(brand);
+
+        Paragraph labelTitle = new Paragraph("SHIPPING LABEL", valueBold);
+        labelTitle.setLeading(9);
+        labelTitle.setSpacingAfter(4);
         document.add(labelTitle);
 
         PdfPTable addresses = new PdfPTable(2);
         addresses.setWidthPercentage(100);
         addresses.setWidths(new float[]{1, 1});
-        addresses.addCell(box("PICKUP FROM", pickupAddress(seller), heading, normal));
-        addresses.addCell(box("DELIVER TO", deliveryAddress(order), heading, normal));
+        addresses.addCell(box("PICKUP FROM", pickupAddress(seller), section, value));
+        addresses.addCell(box("DELIVER TO", deliveryAddress(order), section, value));
         document.add(addresses);
-        document.add(Chunk.NEWLINE);
 
-        // Make COD collection impossible to miss for the delivery person.
-        boolean codOrder = isCod(order);
-        PdfPTable paymentBox = new PdfPTable(2);
-        paymentBox.setWidthPercentage(100);
-        paymentBox.setWidths(new float[]{1, 1});
-        paymentBox.addCell(lineCell("SHIPMENT / ORDER", order.orderNumber, bold, tiny));
-        if (codOrder) {
-            paymentBox.addCell(highlightCell("COD - COLLECT FROM CUSTOMER",
-                    "₹" + money(order.total), cod, tiny));
-        } else {
-            paymentBox.addCell(highlightCell("PAYMENT",
-                    "PREPAID - NO COLLECTION", bold, tiny));
-        }
-        document.add(paymentBox);
-        document.add(Chunk.NEWLINE);
+        PdfPTable shipment = new PdfPTable(2);
+        shipment.setWidthPercentage(100);
+        shipment.setWidths(new float[]{1, 1});
+        shipment.setSpacingBefore(4);
+        shipment.addCell(lineCell("SHIPMENT / ORDER", safe(order.orderNumber), valueBold, tiny));
+        shipment.addCell(codCell(order, valueBold, tiny));
+        document.add(shipment);
 
-        // Compact product snapshot so all products remain on the same label page.
         PdfPTable products = new PdfPTable(4);
         products.setWidthPercentage(100);
-        products.setWidths(new float[]{3.8f, 1.6f, 0.8f, 1.4f});
-        products.addCell(headerCell("PRODUCT", heading));
-        products.addCell(headerCell("SKU / ID", heading));
-        products.addCell(headerCell("QTY", heading));
-        products.addCell(headerCell("CATEGORY", heading));
+        products.setWidths(new float[]{3.8f, 1.7f, 0.8f, 1.4f});
+        products.setSpacingBefore(4);
+        products.addCell(headerCell("PRODUCT", section));
+        products.addCell(headerCell("SKU / ID", section));
+        products.addCell(headerCell("QTY", section));
+        products.addCell(headerCell("CATEGORY", section));
 
         for (OrderItem item : order.items) {
-            products.addCell(valueCell(item.name, normal));
-            products.addCell(valueCell(String.valueOf(item.productId), normal));
-            products.addCell(valueCell(String.valueOf(item.quantity), normal));
-            products.addCell(valueCell(safe(item.category), normal));
+            products.addCell(dataCell(item.name, value));
+            products.addCell(dataCell(String.valueOf(item.productId), value));
+            products.addCell(dataCell(String.valueOf(item.quantity), value));
+            products.addCell(dataCell(safe(item.category), value));
         }
         document.add(products);
-        document.add(Chunk.NEWLINE);
 
-        PdfPTable status = new PdfPTable(2);
-        status.setWidthPercentage(100);
-        status.setWidths(new float[]{1, 1});
-        status.addCell(lineCell("DELIVERY", safe(order.deliveryStatus), bold, tiny));
-        status.addCell(lineCell("PACKAGE", "1 / 1", bold, tiny));
-        document.add(status);
+        PdfPTable delivery = new PdfPTable(2);
+        delivery.setWidthPercentage(100);
+        delivery.setWidths(new float[]{1, 1});
+        delivery.setSpacingBefore(4);
+        delivery.addCell(lineCell("DELIVERY", safe(order.deliveryStatus), valueBold, tiny));
+        delivery.addCell(lineCell("PACKAGE", "1 / 1", valueBold, tiny));
+        document.add(delivery);
 
-        document.add(Chunk.NEWLINE);
-        Image barcode = barcode(order.orderNumber);
-        barcode.scaleToFit(245, 42);
+        Image barcode = barcode(safe(order.orderNumber));
+        barcode.scaleToFit(210, 34);
         barcode.setAlignment(Element.ALIGN_CENTER);
+        barcode.setSpacingBefore(4);
+        barcode.setSpacingAfter(1);
         document.add(barcode);
 
         Paragraph footer = new Paragraph(
-                codOrder
-                        ? "COD: Collect only the amount printed above. Paste securely and do not cover barcode."
-                        : "PREPAID: No cash collection. Paste this label securely and do not cover barcode.",
-                tiny);
+                "COD: Collect only the amount printed above. Paste securely and do not cover barcode.", tiny);
         footer.setAlignment(Element.ALIGN_CENTER);
-        footer.setSpacingBefore(4);
+        footer.setLeading(7);
+        footer.setSpacingBefore(0);
         document.add(footer);
 
         document.close();
         return out.toByteArray();
     }
 
-    private PdfPCell box(String headingText, String value, Font heading, Font normal) {
+    private PdfPCell box(String headingText, String valueText, Font heading, Font value) {
         PdfPCell cell = new PdfPCell();
-        cell.setPadding(6);
-        cell.addElement(new Paragraph(headingText, heading));
-        cell.addElement(new Paragraph(value, normal));
+        cell.setPadding(5);
+        cell.setMinimumHeight(50);
+        cell.addElement(paragraph(headingText, heading, 9));
+        cell.addElement(paragraph(valueText, value, 8));
         return cell;
     }
 
-    private PdfPCell lineCell(String label, String value, Font bold, Font small) {
+    private PdfPCell lineCell(String label, String valueText, Font bold, Font small) {
         PdfPCell cell = new PdfPCell();
-        cell.setPadding(5);
-        cell.addElement(new Paragraph(label, bold));
-        cell.addElement(new Paragraph(value, small));
+        cell.setPadding(4);
+        cell.addElement(paragraph(label, bold, 8));
+        cell.addElement(paragraph(valueText, small, 7));
         return cell;
     }
 
-    private PdfPCell highlightCell(String label, String value, Font valueFont, Font small) {
+    private PdfPCell codCell(Order order, Font bold, Font small) {
         PdfPCell cell = new PdfPCell();
-        cell.setPadding(5);
+        cell.setPadding(4);
+        boolean cod = "COD".equalsIgnoreCase(safe(order.paymentMethod));
+        if (cod) {
+            cell.addElement(paragraph("COD - COLLECT FROM CUSTOMER", bold, 8));
+            cell.addElement(paragraph("₹" + amount(order.total), FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12), 12));
+        } else {
+            cell.addElement(paragraph("PREPAID - NO COLLECTION", bold, 8));
+            cell.addElement(paragraph("₹0", small, 7));
+        }
+        return cell;
+    }
+
+    private PdfPCell headerCell(String text, Font font) {
+        PdfPCell cell = new PdfPCell();
+        cell.setPadding(3);
         cell.setBackgroundColor(new java.awt.Color(245, 245, 245));
-        cell.addElement(new Paragraph(label, small));
-        Paragraph amount = new Paragraph(value, valueFont);
-        amount.setSpacingBefore(2);
-        cell.addElement(amount);
+        cell.addElement(paragraph(text, font, 7));
         return cell;
     }
 
-    private PdfPCell headerCell(String value, Font font) {
-        PdfPCell cell = new PdfPCell(new Paragraph(value, font));
-        cell.setPadding(4);
-        cell.setBackgroundColor(new java.awt.Color(238, 238, 238));
+    private PdfPCell dataCell(String text, Font font) {
+        PdfPCell cell = new PdfPCell();
+        cell.setPadding(3);
+        cell.addElement(paragraph(safe(text), font, 7));
         return cell;
     }
 
-    private PdfPCell valueCell(String value, Font font) {
-        PdfPCell cell = new PdfPCell(new Paragraph(safe(value), font));
-        cell.setPadding(4);
-        return cell;
+    private Paragraph paragraph(String text, Font font, float leading) {
+        Paragraph p = new Paragraph(safe(text), font);
+        p.setLeading(leading);
+        p.setSpacingBefore(0);
+        p.setSpacingAfter(0);
+        return p;
     }
 
     private String pickupAddress(SellerApplication seller) {
         if (seller == null) return "Seller pickup address not available";
-        return String.join(", ", Stream.of(
+        return String.join(", ", java.util.stream.Stream.of(
                 seller.storeName, seller.ownerName, seller.pickupAddress,
                 seller.city, seller.state, seller.pincode
         ).filter(v -> v != null && !v.isBlank()).toList());
     }
 
     private String deliveryAddress(Order order) {
-        return String.join(", ", Stream.of(
+        return String.join(", ", java.util.stream.Stream.of(
                 order.customer == null ? null : order.customer.name,
                 order.address
         ).filter(v -> v != null && !v.isBlank()).toList());
     }
 
-    private boolean isCod(Order order) {
-        if (order.paymentMethod != null && !order.paymentMethod.isBlank()) {
-            return "COD".equalsIgnoreCase(order.paymentMethod.trim());
-        }
-        return order.paymentStatus != null
-                && order.paymentStatus.toUpperCase().contains("COD");
-    }
-
-    private String money(BigDecimal value) {
-        if (value == null) return "0.00";
-        return value.stripTrailingZeros().toPlainString();
-    }
-
     private Image barcode(String value) throws Exception {
-        var matrix = new MultiFormatWriter().encode(value, BarcodeFormat.CODE_128, 600, 100);
+        var matrix = new MultiFormatWriter().encode(value, BarcodeFormat.CODE_128, 500, 90);
         BufferedImage buffered = MatrixToImageWriter.toBufferedImage(matrix);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(buffered, "png", out);
         return Image.getInstance(out.toByteArray());
+    }
+
+    private String amount(BigDecimal value) {
+        return value == null ? "0" : value.stripTrailingZeros().toPlainString();
     }
 
     private String safe(String value) {
