@@ -20,11 +20,17 @@ import { CartService } from '../core/cart.service';
       <div *ngIf="cart.cart().length; else empty" class="layout">
         <section class="items">
           <article class="item card" *ngFor="let item of visibleItems">
-            <img [src]="item.product.image" [alt]="item.product.name">
+            <a class="product-link product-image-link" [routerLink]="['/product', item.product.id]" aria-label="View {{ item.product.name }}">
+              <img [src]="item.product.image" [alt]="item.product.name">
+            </a>
 
             <div class="info">
               <div class="eyebrow">{{ item.product.category }}</div>
-              <h3>{{ item.product.name }}</h3>
+              <h3>
+                <a class="product-link" [routerLink]="['/product', item.product.id]">
+                  {{ item.product.name }}
+                </a>
+              </h3>
 
               <div class="price-line">
                 <strong>₹{{ item.product.price | number }}</strong>
@@ -161,6 +167,10 @@ import { CartService } from '../core/cart.service';
     .items{display:grid;gap:14px}
     .item{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:20px;padding:14px;position:relative}
     .item img{width:150px;height:180px;object-fit:cover;border-radius:13px;background:#f1f1ee}
+    .product-link{color:inherit;text-decoration:none}
+    .product-link:hover{text-decoration:underline}
+    .product-image-link{display:block}
+    .product-image-link:hover{text-decoration:none;opacity:.94}
     .info{padding:8px 4px}
     .info h3{font-size:20px;margin:8px 0 10px}
     .price-line{display:flex;align-items:center;gap:10px;font-size:16px}
