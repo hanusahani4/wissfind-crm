@@ -12,6 +12,10 @@ export class RazorpayLoaderService {
     this.loading = new Promise<void>((resolve, reject) => {
       const existing = document.querySelector('script[data-wissfind-razorpay]') as HTMLScriptElement | null;
       if (existing) {
+        if ((window as any).Razorpay) {
+          resolve();
+          return;
+        }
         existing.addEventListener('load', () => resolve(), { once: true });
         existing.addEventListener('error', () => reject(new Error('Razorpay checkout could not be loaded.')), { once: true });
         return;
@@ -20,7 +24,7 @@ export class RazorpayLoaderService {
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       script.async = true;
-      script.dataset.wissfindRazorpay = 'true';
+      script.setAttribute('data-wissfind-razorpay', 'true');
       script.onload = () => resolve();
       script.onerror = () => reject(new Error('Razorpay checkout could not be loaded. Please refresh and try again.'));
       document.head.appendChild(script);
