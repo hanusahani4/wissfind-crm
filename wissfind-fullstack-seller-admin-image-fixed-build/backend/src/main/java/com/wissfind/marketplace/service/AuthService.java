@@ -68,9 +68,6 @@ public class AuthService {
         challenge.phone=p;
         challenge.purpose=normalizedPurpose;
         challenge.sessionId=provider.sessionId();
-        // AUTOGEN2 returns the generated OTP in the provider response. Store it in
-        // the legacy nullable column for audit/debug visibility. Verification still
-        // happens against 2Factor using the session ID.
         challenge.otp=provider.otp();
         challenge.expiresAt=now.plus(Duration.ofMinutes(ttlMinutes));
         log.info("Saving new OTP challenge: sessionPresent={}, otpPresent={}",
@@ -94,13 +91,21 @@ public class AuthService {
         String p=norm(phone); String normalizedPurpose=purpose==null?"":purpose.trim().toUpperCase();
         validateIndianPhone(p);
         if(!SIGNUP.equals(normalizedPurpose)&&!RESET.equals(normalizedPurpose)) throw new IllegalArgumentException("Invalid OTP purpose");
-        if(otp==null||!otp.matches("\\d{4,8}")) throw new IllegalArgumentException("Enter a valid OTP");
+        if(otp==null||!otp.trim().matches("\\d{6}")) throw new IllegalArgumentException("Enter a valid 6-digit OTP");
 
         Instant now=Instant.now();
         OtpChallenge challenge=otps.findTopByPhoneAndPurposeAndSessionIdIsNotNullAndVerifiedFalseAndConsumedFalseAndExpiresAtAfterOrderByCreatedAtDesc(p,normalizedPurpose,now)
                 .orElseThrow(()->new IllegalArgumentException("Invalid or expired OTP"));
-        twoFactor.verify(challenge.sessionId,otp.trim());
+
+        String submittedOtp=otp.trim();
+        twoFactor.verify(challenge.sessionId,submittedOtp);
+        if(challenge.otp==null || !submittedOtp.equals(challenge.otp)) {
+            log.warn("Ninza OTP verification failed for phone ending {}", lastFour(p));
+            throw new IllegalArgumentException("Invalid or expired OTP");
+        }
+
         challenge.verified=true; challenge.verifiedAt=now; otps.save(challenge);
+        log.info("Ninza OTP verification succeeded for phone ending {}", lastFour(p));
         return Map.of("verified",true,"success",true,"message","OTP verified successfully");
     }
 
@@ -136,6 +141,7 @@ public class AuthService {
 
     private void validatePassword(String password){ if(password==null||password.length()<8) throw new IllegalArgumentException("Password must contain at least 8 characters"); }
     private void validateIndianPhone(String phone){ if(!phone.matches("\\+91[6-9]\\d{9}")) throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number"); }
+    private String lastFour(String phone){ return phone==null||phone.length()<4?"****":phone.substring(phone.length()-4); }
     public User currentUser(){ return users.findById(CurrentUser.id()).orElseThrow(); }
     public Map<String,Object> token(User u){ return Map.of("token",jwt.generate(u.id,u.phone,u.role.name()),"user",Map.of("id",u.id,"name",u.name,"phone",u.phone,"role",u.role.name())); }
 
