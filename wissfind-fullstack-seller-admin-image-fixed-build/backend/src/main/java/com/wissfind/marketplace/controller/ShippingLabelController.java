@@ -86,9 +86,7 @@ public class ShippingLabelController {
         for (int index = 0; index < order.items.size(); index++) {
             OrderItem item = order.items.get(index);
 
-            Paragraph brand = new Paragraph("WISSFIND", title);
-            brand.setSpacingAfter(2);
-            document.add(brand);
+            document.add(new Paragraph("WISSFIND", title));
             Paragraph labelTitle = new Paragraph("SHIPPING LABEL", heading);
             labelTitle.setSpacingAfter(8);
             document.add(labelTitle);
@@ -107,9 +105,9 @@ public class ShippingLabelController {
             orderInfo.addCell(lineCell("Order", order.orderNumber, bold, small));
             orderInfo.addCell(lineCell("Payment", safe(order.paymentMethod), bold, small));
             orderInfo.addCell(lineCell("Product", item.name, bold, small));
+            orderInfo.addCell(lineCell("SKU / Product ID", String.valueOf(item.productId), bold, small));
             orderInfo.addCell(lineCell("Category", safe(item.category), bold, small));
             orderInfo.addCell(lineCell("Quantity", String.valueOf(item.quantity), bold, small));
-            orderInfo.addCell(lineCell("Price", "₹" + (item.price == null ? "0" : item.price), bold, small));
             orderInfo.addCell(lineCell("Package", (index + 1) + " / " + order.items.size(), bold, small));
             orderInfo.addCell(lineCell("Delivery", safe(order.deliveryStatus), bold, small));
             document.add(orderInfo);
