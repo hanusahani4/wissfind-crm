@@ -111,8 +111,6 @@ public class OrderController {
         List<Long> productIds = longList(body.get("productIds"));
         List<Map<String, Object>> requestedItems = mapList(body.get("items"));
 
-        // New checkout sends item quantities. Keep productIds support so old
-        // clients can still place an order, defaulting those legacy items to 1.
         if (requestedItems.isEmpty() && !productIds.isEmpty()) {
             for (Long productId : productIds) {
                 requestedItems.add(new LinkedHashMap<>(Map.of(
@@ -148,7 +146,6 @@ public class OrderController {
             }
         }
 
-        // Prefer deriving seller from the actual cart products.
         if (!productIds.isEmpty()) {
             Set<Long> sellerIds = new LinkedHashSet<>();
 
@@ -218,9 +215,6 @@ public class OrderController {
         order.paymentStatus = "PENDING";
         order.deliveryStatus = "Processing";
 
-        // Persist a product snapshot with the order. Previously only productIds
-        // were used to validate the seller and then discarded. That is why the
-        // customer My Orders API returned orders with an empty items array.
         for (Map<String, Object> requestedItem : requestedItems) {
             Long productId = longValue(requestedItem.get("productId"));
             Product product = products.findById(productId).orElseThrow(
@@ -245,11 +239,17 @@ public class OrderController {
             item.price = BigDecimal.valueOf(product.price);
             item.variant = stringValue(requestedItem.get("variant"));
             order.items.add(item);
+
+            // Reserve/decrement inventory as part of the same transaction as the
+            // order. If any later validation fails, the transaction rolls back both.
+            product.stock -= quantity;
+            product.sales += quantity;
+            if (product.stock == 0) {
+                product.status = Product.Status.OUT_OF_STOCK;
+            }
+            products.save(product);
         }
 
-        // Recalculate checkout totals from current DB product prices. The browser
-        // never gets to choose the final payable amount. Fees are intentionally zero
-        // except delivery and optional gift wrapping.
         BigDecimal serverSubtotal = order.items.stream()
                 .map(i -> i.price.multiply(BigDecimal.valueOf(i.quantity)))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -278,14 +278,6 @@ public class OrderController {
         ).filter(v -> v != null && !v.isBlank()).toList());
     }
 
-    /**
-     * Cancels an order for the authenticated customer. Cancellation is a
-     * server-side state change; the old UI only stored a local flag, so a
-     * refresh made the order active again and seller/admin never saw it.
-     *
-     * Only Processing orders can be cancelled immediately. Once shipped, the
-     * order must go through the return/after-sales flow instead.
-     */
     @PatchMapping("/{id}/cancel")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Transactional
@@ -320,14 +312,14 @@ public class OrderController {
         order.cancellationNote = note == null ? null : note.trim();
         order.cancelledAt = java.time.LocalDateTime.now();
 
-        // A paid order is not silently marked as refunded. It is explicitly
-        // placed in refund-pending state; the existing dummy payment flow can
-        // then be extended without losing financial state. COD needs no refund.
         if ("PAID".equalsIgnoreCase(order.paymentStatus)) {
             order.paymentStatus = "REFUND_PENDING";
         } else {
             order.paymentStatus = "CANCELLED";
         }
+
+        // Return the reserved quantity when a Processing order is cancelled.
+        restoreStock(order);
 
         Order saved = repo.save(order);
         if (!returnRequests.existsByOrderId(order.id)) {
@@ -343,11 +335,6 @@ public class OrderController {
         return saved;
     }
 
-    /**
-     * Seller rejection is a server-side cancellation. A seller may reject only
-     * their own Processing order. Paid orders move to REFUND_PENDING so the
-     * customer/admin see the same financial state.
-     */
     @PatchMapping("/{id}/reject")
     @PreAuthorize("hasRole('SELLER')")
     @Transactional
@@ -381,10 +368,11 @@ public class OrderController {
             order.paymentStatus = "CANCELLED";
         }
 
+        // Return the reserved quantity when the seller rejects a Processing order.
+        restoreStock(order);
+
         Order saved = repo.save(order);
 
-        // Keep one cancellation/refund record so customer Returns & Refunds,
-        // seller and admin all see the same server-side event.
         if (!returnRequests.existsByOrderId(saved.id)) {
             var rr = new com.wissfind.marketplace.entity.ReturnRequest();
             rr.order = saved;
@@ -421,6 +409,23 @@ public class OrderController {
 
         order.deliveryStatus = value.trim();
         return repo.save(order);
+    }
+
+    private void restoreStock(Order order) {
+        if (order.items == null || order.items.isEmpty()) return;
+
+        for (OrderItem item : order.items) {
+            if (item.productId == null) continue;
+
+            products.findById(item.productId).ifPresent(product -> {
+                product.stock += Math.max(0, item.quantity);
+                if (product.status == Product.Status.OUT_OF_STOCK && product.stock > 0) {
+                    product.status = Product.Status.LIVE;
+                }
+                product.sales = Math.max(0, product.sales - Math.max(0, item.quantity));
+                products.save(product);
+            });
+        }
     }
 
     private User customerForCurrentUser() { return users.findById(CurrentUser.id()).orElseThrow(); }
