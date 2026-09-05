@@ -73,7 +73,8 @@ public class ShippingLabelController {
 
     private byte[] buildPdf(Order order, SellerApplication seller) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A5, 24, 24, 24, 24);
+        // 4 x 6 inch thermal-label size (100 x 150 mm).
+        Document document = new Document(new Rectangle(283.46f, 425.20f), 18, 18, 18, 18);
         PdfWriter.getInstance(document, out);
         document.open();
 
@@ -102,7 +103,7 @@ public class ShippingLabelController {
             PdfPTable orderInfo = new PdfPTable(2);
             orderInfo.setWidthPercentage(100);
             orderInfo.setWidths(new float[]{1, 1});
-            orderInfo.addCell(lineCell("Order", order.orderNumber, bold, small));
+            orderInfo.addCell(lineCell("Shipment / Order", order.orderNumber, bold, small));
             orderInfo.addCell(lineCell("Payment", safe(order.paymentMethod), bold, small));
             orderInfo.addCell(lineCell("Product", item.name, bold, small));
             orderInfo.addCell(lineCell("SKU / Product ID", String.valueOf(item.productId), bold, small));
@@ -114,7 +115,7 @@ public class ShippingLabelController {
 
             document.add(Chunk.NEWLINE);
             Image barcode = barcode(order.orderNumber + "-" + item.id);
-            barcode.scaleToFit(260, 55);
+            barcode.scaleToFit(245, 50);
             barcode.setAlignment(Element.ALIGN_CENTER);
             document.add(barcode);
 
