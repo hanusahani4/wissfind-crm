@@ -94,7 +94,10 @@ interface Order {
 
               <div class="order-body">
                 <div class="items-preview">
-                  <div class="product-row" *ngFor="let item of order.items">
+                  <a class="product-row"
+                     *ngFor="let item of order.items"
+                     [routerLink]="['/product', item.id]"
+                     [attr.aria-label]="'View ' + item.name">
                     <img [src]="item.image" [alt]="item.name">
                     <div class="product-info">
                       <div class="eyebrow">{{ item.category }}</div>
@@ -102,7 +105,7 @@ interface Order {
                       <p>{{ item.variant || 'Standard variant' }} · Qty {{ item.quantity }}</p>
                     </div>
                     <strong>₹{{ item.price | number }}</strong>
-                  </div>
+                  </a>
                 </div>
 
                 <aside class="order-side">
@@ -291,7 +294,7 @@ interface Order {
     .status-delivered{background:#eaf7ef;color:#19744a}.status-shipped{background:#edf4ff;color:#235aa6}.status-processing{background:#fff7e8;color:#9a6200}.status-cancelled{background:#fff0f0;color:#b42318}
     .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
     .order-body{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:20px;padding:18px 20px}
-    .items-preview{display:grid;gap:13px}.product-row{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:13px;align-items:center}.product-row img{width:70px;height:78px;border-radius:10px;object-fit:cover;background:#f2f2ef}.product-info h3{font-size:15px;margin:4px 0}.product-info p{font-size:12px;color:#888;margin:0}.product-row>strong{font-size:13px;align-self:start;margin-top:5px}
+    .items-preview{display:grid;gap:13px}.product-row{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:13px;align-items:center;color:inherit;text-decoration:none;cursor:pointer}.product-row:hover{background:#fafaf8;border-radius:12px}.product-row img{width:70px;height:78px;border-radius:10px;object-fit:cover;background:#f2f2ef}.product-info h3{font-size:15px;margin:4px 0}.product-info p{font-size:12px;color:#888;margin:0}.product-row>strong{font-size:13px;align-self:start;margin-top:5px}
     .order-side{border-left:1px solid var(--line);padding-left:20px}.side-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.08em}.order-total{font-size:22px;display:block;margin:5px 0}.payment{font-size:11px;color:#888}.delivery{display:grid;gap:3px;border-top:1px solid var(--line);margin-top:14px;padding-top:13px;font-size:11px;color:#888}.delivery strong{color:#111;font-size:12px}
     .tracking{border-top:1px solid var(--line);padding:16px 20px;background:#fbfbfa}.tracking-head{display:flex;justify-content:space-between;font-size:12px}.tracking-head span{color:#888}.timeline{display:flex;align-items:center;margin-top:15px}.track-step{display:grid;justify-items:center;gap:5px;color:#aaa;min-width:60px}.track-step span{width:25px;height:25px;border-radius:50%;border:1px solid #ddd;background:#fff;display:grid;place-items:center;font-size:11px}.track-step.done{color:#111}.track-step.done span{background:#111;color:#fff;border-color:#111}.track-step small{font-size:10px}.track-line{height:2px;background:#ddd;flex:1}.track-line.done{background:#111}
     .cancelled{margin:0 20px 16px;padding:11px 12px;border-radius:9px;background:#fff5f5;color:#a72a25;font-size:12px}.cancelled span{font-weight:900;margin-right:5px}
