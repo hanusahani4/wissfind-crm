@@ -66,8 +66,6 @@ public class TwoFactorOtpService {
             String status = firstText(response, "Status", "status", "success");
             String details = firstText(response, "Details", "details", "message", "Message", "error", "Error");
 
-            // Ninza's successful HTTP response is the provider acceptance signal.
-            // Keep the response parsing tolerant because account/API response fields may vary.
             if (response.path("success").isBoolean() && !response.path("success").asBoolean()) {
                 throw new IllegalArgumentException(details == null ? "Unable to send OTP." : "Unable to send OTP: " + details);
             }
@@ -106,11 +104,18 @@ public class TwoFactorOtpService {
 
     private String normalizePhone(String phone) {
         if (phone == null) throw new IllegalArgumentException("Phone number is required");
-        String digits = phone.replaceAll("\\D", "");
+
+        String digits = phone.trim().replaceAll("\\D", "");
+
+        // Accept 0XXXXXXXXXX, 91XXXXXXXXXX, +91XXXXXXXXXX and XXXXXXXXXX.
+        if (digits.startsWith("0") && digits.length() == 11) digits = digits.substring(1);
         if (digits.startsWith("91") && digits.length() == 12) digits = digits.substring(2);
+
         if (digits.length() != 10 || digits.charAt(0) < '6' || digits.charAt(0) > '9') {
             throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number");
         }
+
+        // Ninza receives the local 10-digit mobile number.
         return digits;
     }
 
