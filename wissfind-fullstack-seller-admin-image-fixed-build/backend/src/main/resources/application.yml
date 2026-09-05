@@ -31,12 +31,11 @@ app:
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:10}
     expose-dev: false
-    provider: 2FACTOR
-    api-key: ${TWOFACTOR_API_KEY:}
-    base-url: ${TWOFACTOR_BASE_URL:https://2factor.in}
-    send-path: ${TWOFACTOR_SEND_PATH:/API/V1/{api_key}/SMS/{phone_number}/AUTOGEN2/{otp_template_name}}
-    verify-path: ${TWOFACTOR_VERIFY_PATH:/API/V1/{api_key}/SMS/VERIFY/{session_id}/{otp}}
-    template-name: ${TWOFACTOR_TEMPLATE_NAME:OTP1}
+    provider: NINZA
+    ninza:
+      authorization: ${NINZA_SMS_AUTH:}
+      sender-id: ${NINZA_SMS_SENDER_ID:}
+      base-url: ${NINZA_SMS_BASE_URL:https://ninzasms.in.net/auth/send_sms.php}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
 
 management:
