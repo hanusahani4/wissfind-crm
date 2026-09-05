@@ -148,8 +148,12 @@ public class AuthService {
     public static String norm(String p){
         if(p==null) throw new IllegalArgumentException("Phone number is required");
         String s=p.trim().replaceAll("\\D","");
-        if(s.startsWith("91")&&s.length()==12) return "+"+s;
+
+        // Accept 0XXXXXXXXXX, 91XXXXXXXXXX, +91XXXXXXXXXX and XXXXXXXXXX.
+        if(s.startsWith("0") && s.length()==11) s=s.substring(1);
+        if(s.startsWith("91") && s.length()==12) s=s.substring(2);
         if(s.length()==10) return "+91"+s;
-        return "+"+s;
+
+        throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number");
     }
 }
