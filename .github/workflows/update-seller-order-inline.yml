@@ -1,0 +1,46 @@
+name: Apply seller order inline fields
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update seller order product row
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/seller.component.ts')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''<div class="order-item" *ngFor="let item of (o.items||[])"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.category||'Product'}} <span *ngIf="item.variant">· {{item.variant}}</span></small></div><span>Qty {{item.quantity}}</span><b>₹{{item.price|number}}</b></div>'''
+          new = '''<div class="order-item" *ngFor="let item of (o.items||[])"><div class="order-product"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.variant||'Product'}}</small></div></div><div class="order-field"><small>Category</small><span>{{item.category||'—'}}</span></div><div class="order-field"><small>Qty</small><span>{{item.quantity}}</span></div><div class="order-field price"><small>Price</small><b>₹{{item.price|number}}</b></div></div>'''
+          if old not in text:
+              raise SystemExit('seller order row pattern not found')
+          text = text.replace(old, new, 1)
+
+          old_css = '''.order-item{display:grid;grid-template-columns:46px minmax(0,1fr) 70px 90px;gap:12px;align-items:center;padding:9px;border:1px solid #e6e7eb;border-radius:10px;background:#fff}\n    .order-item img{width:46px;height:52px;object-fit:cover;border-radius:7px;background:#f2f2ef}\n    .order-item small{display:block;color:#667085;margin-top:3px}'''
+          new_css = '''.order-item{display:grid;grid-template-columns:minmax(0,1fr) 160px 70px 100px;gap:14px;align-items:center;padding:10px;border:1px solid #e6e7eb;border-radius:10px;background:#fff}\n    .order-product{display:flex;align-items:center;gap:10px;min-width:0}\n    .order-product>div{min-width:0}\n    .order-product img{width:46px;height:52px;object-fit:cover;border-radius:7px;background:#f2f2ef;flex:0 0 auto}\n    .order-product b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n    .order-product small,.order-field small{display:block;color:#667085;margin-top:3px}\n    .order-field{min-width:0}\n    .order-field span,.order-field b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n    .order-field.price{text-align:right}'''
+          if old_css not in text:
+              raise SystemExit('seller order css pattern not found')
+          text = text.replace(old_css, new_css, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit seller order inline update
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/seller.component.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'Show seller order product details inline'
+          git push
