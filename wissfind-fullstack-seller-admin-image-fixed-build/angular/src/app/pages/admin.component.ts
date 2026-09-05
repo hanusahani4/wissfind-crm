@@ -18,7 +18,7 @@ import { AuthService } from '../core/auth.service';
 
    <section class="content" *ngIf="section==='Products'"><div class="title"><div><h1>Products</h1><p class="muted">Approve seller listings before they go live.</p></div><button class="link" (click)="loadProducts()">Refresh</button></div><div class="panel table"><table><thead><tr><th>Image</th><th>Product</th><th>Seller</th><th>Category</th><th>Price</th><th>GST</th><th>Stock</th><th>Rating</th><th>Status</th><th>Action</th></tr></thead><tbody><tr *ngFor="let p of pageOf('products', products)"><td><img class="thumb" *ngIf="p.image" [src]="imageUrl(p.image)"></td><td><b>{{p.name}}</b><small>{{p.sku}}</small><small>{{(p.images||[]).length}} images</small></td><td>{{p.seller?.name||'—'}}</td><td>{{p.category}} / {{p.subcategory||'—'}}</td><td>₹{{p.price|number}}</td><td>{{p.gstPercent}}%</td><td>{{p.stock}}</td><td>★ {{p.rating||0}} ({{p.reviews||0}})</td><td>{{p.status}}</td><td><button *ngIf="p.status==='PENDING'" class="primary small" (click)="approveProduct(p)">Approve</button><button *ngIf="p.status==='PENDING'" class="danger" (click)="rejectProduct(p)">Reject</button><button class="danger" (click)="deleteProduct(p)">Delete</button></td></tr></tbody></table><div class="pagination" *ngIf="pageCount('products', products.length) > 1"><button (click)="prevPage('products')" [disabled]="page('products') === 1">← Prev</button><span>Page {{page('products')}} of {{pageCount('products', products.length)}}</span><button (click)="nextPage('products', products.length)" [disabled]="page('products') === pageCount('products', products.length)">Next →</button></div></div></section>
 
-   <section class="content" *ngIf="section==='Orders'"><h1>Orders</h1><div class="panel table"><table><thead><tr><th>Order</th><th>Customer</th><th>Seller</th><th>Products</th><th>Subtotal</th><th>Shipping</th><th>GST</th><th>Total</th><th>Payment</th><th>Delivery</th></tr></thead><tbody><ng-container *ngFor="let o of pageOf('orders', orders)"><tr><td><b>{{o.orderNumber}}</b><small>{{o.createdAt|date:'medium'}}</small></td><td>{{o.customer?.name||'—'}}</td><td>{{o.seller?.name||'—'}}</td><td><button class="link" type="button" (click)="toggleOrderDetails(o)">{{expandedOrderId===o.id?'Hide':'View'}} {{(o.items||[]).length}} product{{(o.items||[]).length===1?'':'s'}}</button></td><td>₹{{o.subtotal||0|number}}</td><td>₹{{o.shipping||0|number}}</td><td>₹{{o.gst||0|number}}</td><td>₹{{o.total||0|number}}</td><td>{{o.paymentStatus}}</td><td>{{o.deliveryStatus}}</td></tr><tr *ngIf="expandedOrderId===o.id"><td colspan="10"><div class="order-items"><strong>Products ordered</strong><div class="order-item" *ngFor="let item of (o.items||[])"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.category||'Product'}} <span *ngIf="item.variant">· {{item.variant}}</span></small></div><span>Qty {{item.quantity}}</span><b>₹{{item.price|number}}</b></div><div class="empty" *ngIf="!(o.items||[]).length">No product snapshot is available for this order.</div></div></td></tr></ng-container></tbody></table><div class="pagination" *ngIf="pageCount('orders', orders.length) > 1"><button (click)="prevPage('orders')" [disabled]="page('orders') === 1">← Prev</button><span>Page {{page('orders')}} of {{pageCount('orders', orders.length)}}</span><button (click)="nextPage('orders', orders.length)" [disabled]="page('orders') === pageCount('orders', orders.length)">Next →</button></div></div></section>
+   <section class="content" *ngIf="section==='Orders'"><h1>Orders</h1><div class="panel table"><table><thead><tr><th>Order</th><th>Customer</th><th>Seller</th><th>Products</th><th>Subtotal</th><th>Shipping</th><th>GST</th><th>Total</th><th>Payment</th><th>Delivery</th></tr></thead><tbody><ng-container *ngFor="let o of pageOf('orders', orders)"><tr><td><b>{{o.orderNumber}}</b><small>{{o.createdAt|date:'medium'}}</small></td><td>{{o.customer?.name||'—'}}</td><td>{{o.seller?.name||'—'}}</td><td><button class="link" type="button" (click)="toggleOrderDetails(o)">{{expandedOrderId===o.id?'Hide':'View'}} {{(o.items||[]).length}} product{{(o.items||[]).length===1?'':'s'}}</button></td><td>₹{{o.subtotal||0|number}}</td><td>₹{{o.shipping||0|number}}</td><td>₹{{o.gst||0|number}}</td><td>₹{{o.total||0|number}}</td><td>{{o.paymentStatus}}</td><td>{{o.deliveryStatus}}</td></tr><tr *ngIf="expandedOrderId===o.id"><td colspan="10"><div class="order-items"><strong>Products ordered</strong><div class="order-item" *ngFor="let item of (o.items||[])" [class.clickable]="!!orderProductId(item)" (click)="openOrderProduct(item)" (keydown.enter)="openOrderProduct(item)" (keydown.space)="openOrderProduct(item); $event.preventDefault()" [attr.tabindex]="orderProductId(item) ? 0 : null" [attr.role]="orderProductId(item) ? 'link' : null"><img *ngIf="item.image" [src]="imageUrl(item.image)" [alt]="item.name"><div><b>{{item.name}}</b><small>{{item.category||'Product'}} <span *ngIf="item.variant">· {{item.variant}}</span></small><small *ngIf="orderProductId(item)" class="view-detail">Click to view full product details</small></div><span>Qty {{item.quantity}}</span><b>₹{{item.price|number}}</b></div><div class="empty" *ngIf="!(o.items||[]).length">No product snapshot is available for this order.</div></div></td></tr></ng-container></tbody></table><div class="pagination" *ngIf="pageCount('orders', orders.length) > 1"><button (click)="prevPage('orders')" [disabled]="page('orders') === 1">← Prev</button><span>Page {{page('orders')}} of {{pageCount('orders', orders.length)}}</span><button (click)="nextPage('orders', orders.length)" [disabled]="page('orders') === pageCount('orders', orders.length)">Next →</button></div></div></section>
 
    <section class="content" *ngIf="section==='Sellers'"><h1>Seller accounts</h1><div class="panel table"><table><thead><tr><th>Seller</th><th>Phone</th><th>Enabled</th><th>Role</th><th>Action</th></tr></thead><tbody><tr *ngFor="let s of pageOf('sellerUsers', sellerUsers)"><td>{{s.name}}</td><td>{{s.phone}}</td><td>{{s.enabled?'Yes':'No'}}</td><td>{{s.role}}</td><td><button class="link" (click)="toggleUser(s)">{{s.enabled?'Disable':'Enable'}}</button></td></tr></tbody></table><div class="pagination" *ngIf="pageCount('sellerUsers', sellerUsers.length) > 1"><button (click)="prevPage('sellerUsers')" [disabled]="page('sellerUsers') === 1">← Prev</button><span>Page {{page('sellerUsers')}} of {{pageCount('sellerUsers', sellerUsers.length)}}</span><button (click)="nextPage('sellerUsers', sellerUsers.length)" [disabled]="page('sellerUsers') === pageCount('sellerUsers', sellerUsers.length)">Next →</button></div></div></section>
 
@@ -46,19 +46,7 @@ import { AuthService } from '../core/auth.service';
  styles:[`
  :host{display:block;background:#f7f7f4;min-height:100vh;color:#171717}.shell{display:flex;min-height:100vh}.side{width:255px;background:#151515;color:#fff;padding:20px 13px;box-sizing:border-box;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}.brand{font-weight:900;font-size:20px;margin-bottom:22px}.brand span{font-weight:400}.brand small{display:block;font-size:9px;color:#aaa;margin-top:4px}.profile{padding:13px;border:1px solid #333;border-radius:12px;display:grid;gap:4px;margin-bottom:16px}.profile small{color:#aaa}.profile em{font-size:9px;color:#9fe2ad;font-style:normal}.side nav{display:grid;gap:4px;overflow:auto}.side nav button,.logout{background:transparent;border:0;color:#ddd;text-align:left;padding:10px;border-radius:9px;cursor:pointer}.side nav button.active,.side nav button:hover{background:#fff;color:#111}.logout{margin-top:auto;border:1px solid #333}.main{flex:1;min-width:0}.main header{height:64px;background:#fff;border-bottom:1px solid #e8e8e5;display:flex;align-items:center;padding:0 24px;gap:12px}.menu,.close{display:none}.spacer{flex:1}.global-search{width:220px;border:1px solid #ddd;border-radius:999px;padding:9px 13px;font:inherit;margin-right:14px}.global-search:focus{outline:2px solid #ddd}.content{padding:26px;max-width:1500px;margin:auto}.muted{color:#777}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-top:20px}.cards>div,.panel{background:#fff;border:1px solid #e8e8e5;border-radius:14px;padding:17px}.cards small{display:block;color:#777}.cards strong{font-size:26px;display:block;margin-top:7px}.title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.primary{background:#111;color:#fff;border:0;border-radius:9px;padding:10px 13px;cursor:pointer}.small{padding:7px 9px}.danger,.link{border:0;background:transparent;cursor:pointer;text-decoration:underline;margin-right:7px}.danger{color:#b42318}.table{overflow:auto}.table table{width:100%;border-collapse:collapse}.table th,.table td{padding:11px;border-bottom:1px solid #eee;text-align:left;font-size:13px;white-space:nowrap}.table small{display:block;color:#888}.wrap{white-space:normal!important;min-width:220px}.thumb{width:52px;height:52px;object-fit:cover;border-radius:8px}.empty{text-align:center;color:#888;padding:35px}.form{margin-bottom:18px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid label{display:grid;gap:6px;font-size:12px;font-weight:700}.grid input,.grid select{border:1px solid #ddd;border-radius:9px;padding:10px;font:inherit;font-weight:400}.error{color:#b42318;background:#fff0f0;padding:10px;border-radius:9px}
  @media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr 1fr}}@media(max-width:850px){.side{position:fixed;z-index:20;left:-270px;transition:.2s}.side.open{left:0}.menu,.close{display:block;border:0;background:transparent;color:inherit}.menu{font-size:20px}.close{position:absolute;right:10px;top:10px;font-size:24px}.content{padding:17px}.grid{grid-template-columns:1fr}}@media(max-width:480px){.cards{grid-template-columns:1fr}.main header{padding:0 12px}}
- 
-    .pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 4px 2px;font-size:13px;color:#667085}
-    .pagination button{border:1px solid #d9dde5;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit;color:#111}
-    .pagination button:hover:not(:disabled){border-color:#111}
-    .pagination button:disabled{opacity:.4;cursor:not-allowed}
-    .pagination span{min-width:110px;text-align:center}
-    .table td small{display:block;color:#667085;font-size:11px;margin-top:3px}
-    .order-items{padding:12px;display:grid;gap:10px;background:#fafaf8}
-    .order-items>strong{font-size:13px}
-    .order-item{display:grid;grid-template-columns:46px minmax(0,1fr) 70px 90px;gap:12px;align-items:center;padding:9px;border:1px solid #e6e7eb;border-radius:10px;background:#fff}
-    .order-item img{width:46px;height:52px;object-fit:cover;border-radius:7px;background:#f2f2ef}
-    .order-item small{display:block;color:#667085;margin-top:3px}
-    .order-items .empty{padding:15px}
+ .pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 4px 2px;font-size:13px;color:#667085}.pagination button{border:1px solid #d9dde5;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit;color:#111}.pagination button:hover:not(:disabled){border-color:#111}.pagination button:disabled{opacity:.4;cursor:not-allowed}.pagination span{min-width:110px;text-align:center}.table td small{display:block;color:#667085;font-size:11px;margin-top:3px}.order-items{padding:12px;display:grid;gap:10px;background:#fafaf8}.order-items>strong{font-size:13px}.order-item{display:grid;grid-template-columns:46px minmax(0,1fr) 70px 90px;gap:12px;align-items:center;padding:9px;border:1px solid #e6e7eb;border-radius:10px;background:#fff}.order-item img{width:46px;height:52px;object-fit:cover;border-radius:7px;background:#f2f2ef}.order-item small{display:block;color:#667085;margin-top:3px}.order-item.clickable{cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}.order-item.clickable:hover{border-color:#111;box-shadow:0 0 0 1px #111 inset;background:#fcfcfa}.order-item.clickable:focus{outline:2px solid #111;outline-offset:1px}.view-detail{color:#111!important;font-weight:700}.order-items .empty{padding:15px}
 `]
 })
 export class AdminComponent implements OnDestroy {
@@ -72,96 +60,29 @@ export class AdminComponent implements OnDestroy {
  expandedOrderId:number|null=null;
  get userName(){return this.auth.user()?.name||'Admin'}get userPhone(){return this.auth.user()?.phone||''}get pendingSellers(){return this.sellers.filter(x=>x.status==='PENDING').length}get pendingProducts(){return this.products.filter(x=>x.status==='PENDING').length}get liveProducts(){return this.products.filter(x=>x.status==='LIVE').length}
  constructor(){void this.go('Overview');}
- ngOnDestroy(){
-  this.sectionAbort?.abort();
-  this.pageAbort.abort();
- }
-
- private get requestSignal(): AbortSignal {
-  return (this.sectionAbort ??= new AbortController()).signal;
- }
-
- async go(n:string){
-  this.sectionAbort?.abort();
-  this.sectionAbort=new AbortController();
-
-  this.section=n;
-  this.mobile=false;
-  this.resetPage(this.listKeyForSection(n));
-
-  // Render the selected tab immediately. Do not wait for the API call.
-  // This prevents the first-click blank-screen issue on slow requests.
-  this.cdr.markForCheck();
-
-  switch(n){
-   case 'Overview':
-   case 'Reports':
-    await this.loadReport(); break;
-   case 'Onboarding':
-    await this.loadSellers(); break;
-   case 'Products':
-    await this.loadProducts(); break;
-   case 'Orders':
-    await this.loadOrders(); break;
-   case 'Sellers':
-    await this.loadSellerUsers(); break;
-   case 'Customers':
-    await this.loadCustomerUsers(); break;
-   case 'Categories':
-    await this.loadCategories(); break;
-   case 'Returns & Refunds':
-    await this.loadReturns(); break;
-   case 'Payments':
-    await this.loadPayments(); break;
-   case 'Coupons':
-    await this.loadCoupons(); break;
-   case 'Reviews':
-    await this.loadReviews(); break;
-   case 'Commissions':
-    await this.loadCommissions(); break;
-   case 'Payouts':
-    await this.loadPayouts(); break;
-   case 'Disputes':
-    await this.loadDisputes(); break;
-  }
- }
-
- async loadAll(){ await this.go(this.section); }
-
- async loadSellerUsers(){ await this.loadPaged('sellerUsers',`/admin/paged/seller-users`,'sellerUsers'); }
- async loadCustomerUsers(){ await this.loadPaged('customers',`/admin/paged/customers`,'customers'); }
- async loadUsers(){ await Promise.all([this.loadSellerUsers(),this.loadCustomerUsers()]); }
- async loadSellers(){ await this.loadPaged('sellers',`/admin/paged/onboarding`,'sellers'); }
- async loadProducts(){ await this.loadPaged('products',`/admin/paged/products`,'products',true); }
- async loadOrders(){ await this.loadPaged('orders',`/admin/paged/orders`,'orders'); }
- async loadCategories(){ await this.loadPaged('categories',`/admin/paged/categories`,'flatCategories'); }
- async loadReturns(){ await this.loadPaged('returns',`/admin/paged/returns`,'returns'); }
- async loadPayments(){ await this.loadPaged('payments',`/admin/paged/payments`,'payments'); }
- async loadCoupons(){ await this.loadPaged('coupons',`/admin/paged/coupons`,'coupons'); }
- async loadCommissions(){ await this.loadPaged('commissions',`/admin/paged/commissions`,'commissions'); }
- async loadPayouts(){ await this.loadPaged('payouts',`/admin/paged/payouts`,'payouts'); }
- async loadDisputes(){ await this.loadPaged('disputes',`/admin/paged/disputes`,'disputes'); }
- async loadReviews(){ await this.loadPaged('reviews',`/admin/paged/reviews`,'reviews'); }
-
- private async loadPaged(key:string,path:string,target:string,withImages=false){
-  try{
-   const page=Math.max(0,this.page(key)-1), search=encodeURIComponent(this.searchState[key]||'');
-   const data:any=await this.api.get(`${path}?page=${page}&size=${this.pageSize}&search=${search}`,this.requestSignal);
-   if(this.requestSignal.aborted)return;
-   (this as any)[target]=data?.content||[];
-   this.totalState[key]=Number(data?.totalElements||0);
-   if(this.page(key)>Math.max(1,Number(data?.totalPages||1)))this.pageState[key]=Math.max(1,Number(data?.totalPages||1));
-   this.cdr.markForCheck();
-  }catch(e:any){
-   if(!this.requestSignal.aborted){(this as any)[target]=[];this.totalState[key]=0;this.cdr.markForCheck();}
-  }
- }
-
- async loadReport(){
-  try{ this.report=await this.api.get('/reports/summary',this.requestSignal); }
-  catch{}
- }
- toggleOrderDetails(o:any){this.expandedOrderId=this.expandedOrderId===Number(o.id)?null:Number(o.id);}
+ ngOnDestroy(){this.sectionAbort?.abort();this.pageAbort.abort();}
+ private get requestSignal(): AbortSignal{return (this.sectionAbort ??= new AbortController()).signal;}
+ async go(n:string){this.sectionAbort?.abort();this.sectionAbort=new AbortController();this.section=n;this.mobile=false;this.resetPage(this.listKeyForSection(n));this.cdr.markForCheck();switch(n){case 'Overview':case 'Reports':await this.loadReport();break;case 'Onboarding':await this.loadSellers();break;case 'Products':await this.loadProducts();break;case 'Orders':await this.loadOrders();break;case 'Sellers':await this.loadSellerUsers();break;case 'Customers':await this.loadCustomerUsers();break;case 'Categories':await this.loadCategories();break;case 'Returns & Refunds':await this.loadReturns();break;case 'Payments':await this.loadPayments();break;case 'Coupons':await this.loadCoupons();break;case 'Reviews':await this.loadReviews();break;case 'Commissions':await this.loadCommissions();break;case 'Payouts':await this.loadPayouts();break;case 'Disputes':await this.loadDisputes();break;}}
+ async loadAll(){await this.go(this.section)}
+ async loadSellerUsers(){await this.loadPaged('sellerUsers',`/admin/paged/seller-users`,'sellerUsers')}
+ async loadCustomerUsers(){await this.loadPaged('customers',`/admin/paged/customers`,'customers')}
+ async loadUsers(){await Promise.all([this.loadSellerUsers(),this.loadCustomerUsers()])}
+ async loadSellers(){await this.loadPaged('sellers',`/admin/paged/onboarding`,'sellers')}
+ async loadProducts(){await this.loadPaged('products',`/admin/paged/products`,'products',true)}
+ async loadOrders(){await this.loadPaged('orders',`/admin/paged/orders`,'orders')}
+ async loadCategories(){await this.loadPaged('categories',`/admin/paged/categories`,'flatCategories')}
+ async loadReturns(){await this.loadPaged('returns',`/admin/paged/returns`,'returns')}
+ async loadPayments(){await this.loadPaged('payments',`/admin/paged/payments`,'payments')}
+ async loadCoupons(){await this.loadPaged('coupons',`/admin/paged/coupons`,'coupons')}
+ async loadCommissions(){await this.loadPaged('commissions',`/admin/paged/commissions`,'commissions')}
+ async loadPayouts(){await this.loadPaged('payouts',`/admin/paged/payouts`,'payouts')}
+ async loadDisputes(){await this.loadPaged('disputes',`/admin/paged/disputes`,'disputes')}
+ async loadReviews(){await this.loadPaged('reviews',`/admin/paged/reviews`,'reviews')}
+ private async loadPaged(key:string,path:string,target:string,withImages=false){try{const page=Math.max(0,this.page(key)-1),search=encodeURIComponent(this.searchState[key]||'');const data:any=await this.api.get(`${path}?page=${page}&size=${this.pageSize}&search=${search}`,this.requestSignal);if(this.requestSignal.aborted)return;(this as any)[target]=data?.content||[];this.totalState[key]=Number(data?.totalElements||0);if(this.page(key)>Math.max(1,Number(data?.totalPages||1)))this.pageState[key]=Math.max(1,Number(data?.totalPages||1));this.cdr.markForCheck()}catch(e:any){if(!this.requestSignal.aborted){(this as any)[target]=[];this.totalState[key]=0;this.cdr.markForCheck()}}}
+ async loadReport(){try{this.report=await this.api.get('/reports/summary',this.requestSignal);this.cdr.markForCheck()}catch{}}
+ toggleOrderDetails(o:any){this.expandedOrderId=this.expandedOrderId===Number(o.id)?null:Number(o.id);this.cdr.markForCheck()}
+ orderProductId(item:any):number|null{const raw=item?.productId??item?.product?.id??item?.product?.productId;const id=Number(raw);return Number.isFinite(id)&&id>0?id:null}
+ async openOrderProduct(item:any){const id=this.orderProductId(item);if(!id){alert('Full product details are not available for this order item because the product ID was not included in the order snapshot.');return}await this.router.navigate(['/product',id])}
  async approve(s:any){try{await this.api.patch(`/sellers/applications/${s.id}/approve`,{});await this.loadSellers();await this.loadUsers()}catch(e:any){alert(e?.error?.error||'Approval failed')}}
  async reject(s:any){if(!confirm(`Reject ${s.storeName}?`))return;try{await this.api.patch(`/sellers/applications/${s.id}/reject`,{});await this.loadSellers()}catch(e:any){alert(e?.error?.error||'Rejection failed')}}
  async suspend(s:any){if(!confirm(`Suspend ${s.storeName}?`))return;try{await this.api.patch(`/sellers/applications/${s.id}/suspend`,{});await this.loadSellers();await this.loadUsers()}catch(e:any){alert(e?.error?.error||'Suspend failed')}}
@@ -177,22 +98,12 @@ export class AdminComponent implements OnDestroy {
  async approvePayout(p:any){try{await this.api.patch(`/payouts/${p.id}/approve`,{});await this.loadPayouts()}catch(e:any){alert(e?.error?.error||'Unable to approve payout')}}
  async respondDispute(d:any){const response=prompt('Enter response',d.response||'');if(response===null)return;try{await this.api.patch(`/disputes/${d.id}/respond`,{response});await this.loadDisputes()}catch(e:any){alert(e?.error?.error||'Unable to respond')}}
  imageUrl(v:string){return !v?'':/^https?:\/\//.test(v)?v:`http://localhost:8080${v.startsWith('/')?'':'/'}${v}`}
- // Server-side pagination/search: only the current page is fetched from MySQL.
- readonly pageSize=10;
- private pageState:Record<string,number>={};
- private totalState:Record<string,number>={};
- private searchState:Record<string,string>={};
- private searchTimer:any;
- page(key:string):number{return this.pageState[key]||1;}
- pageCount(key:string,_length?:number):number{return Math.max(1,Math.ceil((this.totalState[key]||0)/this.pageSize));}
- pageOf<T>(_key:string,rows:T[]):T[]{return rows||[];}
- listKeyForSection(section:string):string{return ({'Onboarding':'sellers','Products':'products','Orders':'orders','Sellers':'sellerUsers','Customers':'customers','Categories':'categories','Returns & Refunds':'returns','Payments':'payments','Coupons':'coupons','Reviews':'reviews','Commissions':'commissions','Payouts':'payouts','Disputes':'disputes'} as any)[section]||section;}
- search():string{return this.searchState[this.listKeyForSection(this.section)]||'';}
- isListSection():boolean{return ['Onboarding','Products','Orders','Sellers','Customers','Categories','Returns & Refunds','Payments','Coupons','Reviews','Commissions','Payouts','Disputes'].includes(this.section);}
- searchChanged(value:string){const key=this.listKeyForSection(this.section);this.searchState[key]=value||'';this.pageState[key]=1;clearTimeout(this.searchTimer);this.searchTimer=setTimeout(()=>this.loadCurrentList(),350);}
- private async loadCurrentList(){switch(this.section){case 'Onboarding':return this.loadSellers();case 'Products':return this.loadProducts();case 'Orders':return this.loadOrders();case 'Sellers':return this.loadSellerUsers();case 'Customers':return this.loadCustomerUsers();case 'Categories':return this.loadCategories();case 'Returns & Refunds':return this.loadReturns();case 'Payments':return this.loadPayments();case 'Coupons':return this.loadCoupons();case 'Reviews':return this.loadReviews();case 'Commissions':return this.loadCommissions();case 'Payouts':return this.loadPayouts();case 'Disputes':return this.loadDisputes();}}
- prevPage(key:string){if(this.page(key)<=1)return;this.pageState[key]=this.page(key)-1;void this.loadCurrentList();}
- nextPage(key:string,_length?:number){if(this.page(key)>=this.pageCount(key))return;this.pageState[key]=this.page(key)+1;void this.loadCurrentList();}
- resetPage(key:string){this.pageState[key]=1;}
-
- async logout(){await this.auth.signOut();this.router.navigateByUrl('/login')}}
+ readonly pageSize=10;private pageState:Record<string,number>={};private totalState:Record<string,number>={};private searchState:Record<string,string>={};private searchTimer:any;
+ page(key:string):number{return this.pageState[key]||1}pageCount(key:string,_length?:number):number{return Math.max(1,Math.ceil((this.totalState[key]||0)/this.pageSize))}pageOf<T>(_key:string,rows:T[]):T[]{return rows||[]}
+ listKeyForSection(section:string):string{return ({'Onboarding':'sellers','Products':'products','Orders':'orders','Sellers':'sellerUsers','Customers':'customers','Categories':'categories','Returns & Refunds':'returns','Payments':'payments','Coupons':'coupons','Reviews':'reviews','Commissions':'commissions','Payouts':'payouts','Disputes':'disputes'} as any)[section]||section}
+ search():string{return this.searchState[this.listKeyForSection(this.section)]||''}isListSection():boolean{return ['Onboarding','Products','Orders','Sellers','Customers','Categories','Returns & Refunds','Payments','Coupons','Reviews','Commissions','Payouts','Disputes'].includes(this.section)}
+ searchChanged(value:string){const key=this.listKeyForSection(this.section);this.searchState[key]=value||'';this.pageState[key]=1;clearTimeout(this.searchTimer);this.searchTimer=setTimeout(()=>this.loadCurrentList(),350)}
+ private async loadCurrentList(){switch(this.section){case 'Onboarding':return this.loadSellers();case 'Products':return this.loadProducts();case 'Orders':return this.loadOrders();case 'Sellers':return this.loadSellerUsers();case 'Customers':return this.loadCustomerUsers();case 'Categories':return this.loadCategories();case 'Returns & Refunds':return this.loadReturns();case 'Payments':return this.loadPayments();case 'Coupons':return this.loadCoupons();case 'Reviews':return this.loadReviews();case 'Commissions':return this.loadCommissions();case 'Payouts':return this.loadPayouts();case 'Disputes':return this.loadDisputes()}}
+ prevPage(key:string){if(this.page(key)<=1)return;this.pageState[key]=this.page(key)-1;void this.loadCurrentList()}nextPage(key:string,_length?:number){if(this.page(key)>=this.pageCount(key))return;this.pageState[key]=this.page(key)+1;void this.loadCurrentList()}resetPage(key:string){this.pageState[key]=1}
+ async logout(){await this.auth.signOut();this.router.navigateByUrl('/login')}
+}
