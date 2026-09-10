@@ -1,12 +1,17 @@
 package com.wissfind.marketplace.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "products", uniqueConstraints = {
         @UniqueConstraint(name = "uk_products_sku", columnNames = "sku")
+}, indexes = {
+        @Index(name = "idx_products_catalogue", columnList = "status, stock, created_at"),
+        @Index(name = "idx_products_category", columnList = "category, status, stock, created_at"),
+        @Index(name = "idx_products_subcategory", columnList = "subcategory, status, stock")
 })
 public class Product extends BaseEntity {
 
@@ -43,16 +48,19 @@ public class Product extends BaseEntity {
     @Transient
     public List<String> images = new ArrayList<>();
 
+    @BatchSize(size = 32)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "tag", length = 80)
     public List<String> tags = new ArrayList<>();
 
+    @BatchSize(size = 32)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_colors", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "color", length = 50)
     public List<String> colors = new ArrayList<>();
 
+    @BatchSize(size = 32)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_sizes", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "size_value", length = 50)
