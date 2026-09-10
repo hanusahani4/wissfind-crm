@@ -8,7 +8,7 @@ import jakarta.persistence.*;
 })
 public class ProductImage extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     public Product product;
 
