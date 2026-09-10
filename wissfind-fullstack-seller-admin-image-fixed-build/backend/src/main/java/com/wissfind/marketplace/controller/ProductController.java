@@ -50,6 +50,7 @@ public class ProductController {
         return result;
     }
 
+    /** Server-side catalogue pagination used by compare and price-alert pages. */
     @GetMapping("/paged")
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Product> paged(
@@ -132,6 +133,7 @@ public class ProductController {
     public Product update(@PathVariable Long id, @RequestBody Product input) {
         Product product = owned(id);
         normalizeAndValidate(input, id);
+        Product.Status oldStatus = product.status;
         product.name = input.name;
         product.category = input.category;
         product.subcategory = input.subcategory;
@@ -157,7 +159,7 @@ public class ProductController {
         product.tags = unique(input.tags);
         product.colors = unique(input.colors);
         product.sizes = unique(input.sizes);
-        product.status = statusFor(product.stock);
+        product.status = statusForUpdate(oldStatus, product.stock);
         return withImages(repo.save(product));
     }
 
@@ -187,13 +189,9 @@ public class ProductController {
     @GetMapping("/{productId}/images/{imageId}")
     public ResponseEntity<byte[]> image(@PathVariable Long productId, @PathVariable Long imageId) {
         ProductImage image = imageRepo.findById(imageId).orElse(null);
-
-        // Never silently substitute another image. A stale/wrong image id must
-        // return 404; otherwise every bad URL can incorrectly display image #1.
         if (image == null || image.product == null || !Objects.equals(image.product.id, productId)) {
             return ResponseEntity.notFound().build();
         }
-
         return imageResponse(image);
     }
 
@@ -281,7 +279,13 @@ public class ProductController {
     public Product stock(@PathVariable Long id, @RequestParam int quantity) {
         Product product = owned(id);
         product.stock = Math.max(0, product.stock + quantity);
-        if (product.stock == 0) product.status = Product.Status.OUT_OF_STOCK;
+        if (product.stock == 0) {
+            product.status = Product.Status.OUT_OF_STOCK;
+        } else if (product.status == Product.Status.OUT_OF_STOCK) {
+            // A product that was already approved should become sellable again
+            // when stock is added back instead of remaining OUT_OF_STOCK.
+            product.status = Product.Status.LIVE;
+        }
         return withImages(repo.save(product));
     }
 
@@ -291,6 +295,14 @@ public class ProductController {
 
     private Product.Status statusFor(int stock) {
         return stock <= 0 ? Product.Status.OUT_OF_STOCK : Product.Status.PENDING;
+    }
+
+    private Product.Status statusForUpdate(Product.Status oldStatus, int stock) {
+        if (stock <= 0) return Product.Status.OUT_OF_STOCK;
+        if (oldStatus == Product.Status.LIVE || oldStatus == Product.Status.OUT_OF_STOCK) {
+            return Product.Status.LIVE;
+        }
+        return Product.Status.PENDING;
     }
 
     private List<MultipartFile> merge(List<MultipartFile> files, List<MultipartFile> images) {
@@ -303,13 +315,11 @@ public class ProductController {
     private void saveImages(Product product, List<MultipartFile> files) throws IOException {
         List<ProductImage> existing = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
         int order = existing.size();
-
         for (MultipartFile file : files) {
             validateImage(file);
             byte[] bytes = file.getBytes();
             String hash = sha256(bytes);
             if (imageRepo.findByProductIdAndSha256(product.id, hash).isPresent()) continue;
-
             ProductImage image = new ProductImage();
             image.product = product;
             image.imageData = bytes;
@@ -318,7 +328,6 @@ public class ProductController {
             image.sha256 = hash;
             image.displayOrder = order++;
             ProductImage saved = imageRepo.save(image);
-
             if (product.image == null || product.image.isBlank()) {
                 product.image = imageUrl(product.id, saved.id);
             }
@@ -360,29 +369,22 @@ public class ProductController {
         if (products == null || products.isEmpty()) return;
         List<Long> productIds = products.stream().map(p -> p.id).filter(Objects::nonNull).toList();
         if (productIds.isEmpty()) return;
-
         Map<Long, List<ProductImage>> imagesByProduct = imageRepo.findByProductIds(productIds)
                 .stream()
                 .collect(Collectors.groupingBy(
                         image -> image.product.id,
                         LinkedHashMap::new,
                         Collectors.toList()));
-
         for (Product product : products) {
-            List<ProductImage> storedImages = imagesByProduct.getOrDefault(
-                    product.id, Collections.emptyList());
-            product.images = storedImages.stream()
-                    .map(image -> imageUrl(product.id, image.id))
-                    .toList();
+            List<ProductImage> storedImages = imagesByProduct.getOrDefault(product.id, Collections.emptyList());
+            product.images = storedImages.stream().map(image -> imageUrl(product.id, image.id)).toList();
             product.image = storedImages.isEmpty() ? null : primaryImageUrl(product.id);
         }
     }
 
     private Product withImages(Product product) {
         List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
-        product.images = storedImages.stream()
-                .map(x -> imageUrl(product.id, x.id))
-                .toList();
+        product.images = storedImages.stream().map(x -> imageUrl(product.id, x.id)).toList();
         product.image = storedImages.isEmpty() ? null : primaryImageUrl(product.id);
         return product;
     }
@@ -408,15 +410,12 @@ public class ProductController {
 
     private List<String> unique(List<String> values) {
         if (values == null) return new ArrayList<>();
-        return values.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isBlank())
-                .distinct().collect(Collectors.toCollection(ArrayList::new));
+        return values.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isBlank()).distinct().collect(Collectors.toCollection(ArrayList::new));
     }
 
     private Product owned(Long id) {
         Product product = repo.findById(id).orElseThrow();
-        if (product.seller == null || !product.seller.id.equals(CurrentUser.id())) {
-            throw new IllegalArgumentException("Not your product");
-        }
+        if (product.seller == null || !product.seller.id.equals(CurrentUser.id())) throw new IllegalArgumentException("Not your product");
         return product;
     }
 }
