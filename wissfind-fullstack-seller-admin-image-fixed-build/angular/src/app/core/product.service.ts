@@ -12,27 +12,31 @@ export class ProductService {
   constructor(private api: BackendApiService) {}
 
   /**
-   * Load the catalogue through the server-side paged endpoint instead of
-   * /products (which used to load the complete table in one request).
-   * The first page is applied immediately; remaining pages are prefetched in
-   * small parallel batches so the existing client-side filters/pagination keep
-   * working without making the initial screen wait for the whole catalogue.
+   * Load only the first visible page immediately. The existing Home page keeps
+   * its client-side filters/pagination, so the remaining server pages are
+   * prefetched in the background instead of blocking first paint.
    */
   async load(signal?: AbortSignal): Promise<void> {
     if (this.loaded || this.loading) return;
     this.loading = true;
 
     try {
-      const pageSize = 50;
+      const pageSize = 8;
       const first:any = await this.api.get(`/products/paged?page=0&size=${pageSize}&search=`, signal);
-      const firstItems = Array.isArray(first?.content) ? first.content.map((x:any) => this.map(x)) : [];
+      const firstItems = Array.isArray(first?.content)
+        ? first.content.map((x:any) => this.map(x))
+        : [];
 
       this.products.splice(0, this.products.length, ...firstItems);
       this.productsVersion.update(v => v + 1);
 
       const totalPages = Math.max(1, Number(first?.totalPages || 1));
       if (totalPages > 1 && !signal?.aborted) {
-        void this.prefetchRemaining(totalPages, pageSize, signal);
+        // Give Angular/browser a chance to paint the first page before the
+        // background catalogue prefetch starts.
+        setTimeout(() => {
+          void this.prefetchRemaining(totalPages, pageSize, signal);
+        }, 250);
       } else {
         this.loaded = true;
         this.loading = false;
@@ -49,7 +53,7 @@ export class ProductService {
   }
 
   private async prefetchRemaining(totalPages:number, pageSize:number, signal?:AbortSignal): Promise<void> {
-    const concurrency = 4;
+    const concurrency = 2;
     try {
       for (let start = 1; start < totalPages; start += concurrency) {
         if (signal?.aborted) return;
@@ -76,7 +80,7 @@ export class ProductService {
         }
       }
     } catch {
-      // Keep the pages already loaded. A later navigation can retry if needed.
+      // Keep the pages already loaded. The visible catalogue remains usable.
     } finally {
       this.loaded = !signal?.aborted;
       this.loading = false;
@@ -84,10 +88,10 @@ export class ProductService {
   }
 
   /** Server-side paginated catalogue API used by pages that need explicit pagination. */
-  async loadPage(page: number, size = 10, search = '', signal?: AbortSignal): Promise<{items: Product[]; total: number; totalPages: number}> {
+  async loadPage(page: number, size = 8, search = '', signal?: AbortSignal): Promise<{items: Product[]; total: number; totalPages: number}> {
     try {
       const safePage = Math.max(0, page);
-      const safeSize = Math.min(50, Math.max(1, size));
+      const safeSize = Math.min(24, Math.max(1, size));
       const params = `page=${safePage}&size=${safeSize}&search=${encodeURIComponent(search.trim())}`;
       const data:any = await this.api.get(`/products/paged?${params}`, signal);
       const items = Array.isArray(data?.content) ? data.content.map((x:any) => this.map(x)) : [];
