@@ -12,12 +12,17 @@ public class ProductImage extends BaseEntity {
     @JoinColumn(name = "product_id", nullable = false)
     public Product product;
 
+    /**
+     * Legacy database image bytes. New uploads do not populate this field;
+     * images are stored in Cloudinary and only their metadata is kept here.
+     * Kept nullable so existing DB rows can continue to work during migration.
+     */
     @Lob
-    @Basic(fetch = FetchType.EAGER)
-    @Column(name = "image_data", nullable = false, columnDefinition = "LONGBLOB")
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "image_data", nullable = true, columnDefinition = "LONGBLOB")
     public byte[] imageData;
 
-    @Column(name = "content_type", nullable = false, length = 100)
+    @Column(name = "content_type", length = 100)
     public String contentType;
 
     @Column(name = "file_name", length = 255)
@@ -28,4 +33,12 @@ public class ProductImage extends BaseEntity {
 
     @Column(name = "display_order", nullable = false)
     public int displayOrder;
+
+    /** Cloudinary public ID used when deleting/referencing the asset. */
+    @Column(name = "cloudinary_public_id", length = 512)
+    public String cloudinaryPublicId;
+
+    /** HTTPS CDN URL returned by Cloudinary. */
+    @Column(name = "cloudinary_url", length = 2048)
+    public String cloudinaryUrl;
 }
