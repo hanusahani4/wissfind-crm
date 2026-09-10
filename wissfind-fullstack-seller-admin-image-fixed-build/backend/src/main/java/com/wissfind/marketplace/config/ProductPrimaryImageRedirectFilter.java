@@ -6,6 +6,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
  * through ProductController's original endpoint.
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
 
     private static final Pattern PATH = Pattern.compile("^/api/products/(\\d+)/image/?$");
