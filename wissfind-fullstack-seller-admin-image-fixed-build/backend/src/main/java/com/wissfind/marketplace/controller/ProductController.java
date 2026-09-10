@@ -7,6 +7,7 @@ import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.repo.ProductImageRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.repo.UserRepository;
+import com.wissfind.marketplace.service.CloudinaryImageService;
 import com.wissfind.marketplace.service.CurrentUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -31,13 +32,16 @@ public class ProductController {
     private final ProductImageRepository imageRepo;
     private final UserRepository users;
     private final ObjectMapper mapper;
+    private final CloudinaryImageService cloudinaryImages;
 
     public ProductController(ProductRepository repo, ProductImageRepository imageRepo,
-                              UserRepository users, ObjectMapper mapper) {
+                              UserRepository users, ObjectMapper mapper,
+                              CloudinaryImageService cloudinaryImages) {
         this.repo = repo;
         this.imageRepo = imageRepo;
         this.users = users;
         this.mapper = mapper;
+        this.cloudinaryImages = cloudinaryImages;
     }
 
     @GetMapping
@@ -177,6 +181,10 @@ public class ProductController {
         return withImages(repo.save(product));
     }
 
+    /**
+     * Legacy endpoint for old DB-backed images. New products return Cloudinary
+     * HTTPS URLs directly in product.image/product.images and never use this endpoint.
+     */
     @Transactional(readOnly = true)
     @GetMapping("/{productId}/image")
     public ResponseEntity<byte[]> primaryImage(@PathVariable Long productId) {
@@ -185,6 +193,7 @@ public class ProductController {
         return imageResponse(image);
     }
 
+    /** Legacy endpoint retained so existing DB-backed images remain accessible. */
     @Transactional(readOnly = true)
     @GetMapping("/{productId}/images/{imageId}")
     public ResponseEntity<byte[]> image(@PathVariable Long productId, @PathVariable Long imageId) {
@@ -223,11 +232,12 @@ public class ProductController {
         if (image.product == null || !Objects.equals(image.product.id, product.id)) {
             throw new IllegalArgumentException("Image does not belong to this product.");
         }
+        cloudinaryImages.delete(image.cloudinaryPublicId);
         imageRepo.delete(image);
         List<ProductImage> remaining = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
         for (int i = 0; i < remaining.size(); i++) remaining.get(i).displayOrder = i;
         imageRepo.saveAll(remaining);
-        product.image = remaining.isEmpty() ? null : primaryImageUrl(product.id);
+        product.image = remaining.isEmpty() ? null : imageDisplayUrl(product.id, remaining.get(0));
         return withImages(repo.save(product));
     }
 
@@ -262,6 +272,7 @@ public class ProductController {
     @PreAuthorize("hasRole('SELLER')")
     public void delete(@PathVariable Long id) {
         Product product = owned(id);
+        deleteCloudinaryAssets(imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id));
         imageRepo.deleteByProductId(product.id);
         repo.delete(product);
     }
@@ -270,6 +281,7 @@ public class ProductController {
     @DeleteMapping("/admin/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public void adminDelete(@PathVariable Long id) {
+        deleteCloudinaryAssets(imageRepo.findByProductIdOrderByDisplayOrderAsc(id));
         imageRepo.deleteByProductId(id);
         repo.deleteById(id);
     }
@@ -282,8 +294,6 @@ public class ProductController {
         if (product.stock == 0) {
             product.status = Product.Status.OUT_OF_STOCK;
         } else if (product.status == Product.Status.OUT_OF_STOCK) {
-            // A product that was already approved should become sellable again
-            // when stock is added back instead of remaining OUT_OF_STOCK.
             product.status = Product.Status.LIVE;
         }
         return withImages(repo.save(product));
@@ -315,22 +325,51 @@ public class ProductController {
     private void saveImages(Product product, List<MultipartFile> files) throws IOException {
         List<ProductImage> existing = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
         int order = existing.size();
+
         for (MultipartFile file : files) {
             validateImage(file);
             byte[] bytes = file.getBytes();
             String hash = sha256(bytes);
             if (imageRepo.findByProductIdAndSha256(product.id, hash).isPresent()) continue;
+
+            String publicId = "product-" + hash.substring(0, 32);
+            CloudinaryImageService.UploadedImage uploaded;
+            try {
+                uploaded = cloudinaryImages.upload(
+                        bytes,
+                        "wissfind/products/" + product.id,
+                        publicId
+                );
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to upload product image to Cloudinary", e);
+            }
+
             ProductImage image = new ProductImage();
             image.product = product;
-            image.imageData = bytes;
+            image.imageData = null;
             image.contentType = file.getContentType().toLowerCase(Locale.ROOT);
             image.fileName = safeFileName(file);
             image.sha256 = hash;
             image.displayOrder = order++;
-            ProductImage saved = imageRepo.save(image);
-            if (product.image == null || product.image.isBlank()) {
-                product.image = imageUrl(product.id, saved.id);
+            image.cloudinaryPublicId = uploaded.publicId();
+            image.cloudinaryUrl = uploaded.secureUrl();
+
+            try {
+                imageRepo.save(image);
+            } catch (RuntimeException e) {
+                cloudinaryImages.delete(uploaded.publicId());
+                throw e;
             }
+
+            if (product.image == null || product.image.isBlank()) {
+                product.image = uploaded.secureUrl();
+            }
+        }
+    }
+
+    private void deleteCloudinaryAssets(List<ProductImage> images) {
+        for (ProductImage image : images) {
+            cloudinaryImages.delete(image.cloudinaryPublicId);
         }
     }
 
@@ -357,8 +396,15 @@ public class ProductController {
         }
     }
 
-    private String imageUrl(Long productId, Long imageId) {
+    private String legacyImageUrl(Long productId, Long imageId) {
         return "/api/products/" + productId + "/images/" + imageId;
+    }
+
+    private String imageDisplayUrl(Long productId, ProductImage image) {
+        if (image.cloudinaryUrl != null && !image.cloudinaryUrl.isBlank()) {
+            return image.cloudinaryUrl;
+        }
+        return legacyImageUrl(productId, image.id);
     }
 
     private String primaryImageUrl(Long productId) {
@@ -377,15 +423,19 @@ public class ProductController {
                         Collectors.toList()));
         for (Product product : products) {
             List<ProductImage> storedImages = imagesByProduct.getOrDefault(product.id, Collections.emptyList());
-            product.images = storedImages.stream().map(image -> imageUrl(product.id, image.id)).toList();
-            product.image = storedImages.isEmpty() ? null : primaryImageUrl(product.id);
+            product.images = storedImages.stream()
+                    .map(image -> imageDisplayUrl(product.id, image))
+                    .toList();
+            product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0));
         }
     }
 
     private Product withImages(Product product) {
         List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
-        product.images = storedImages.stream().map(x -> imageUrl(product.id, x.id)).toList();
-        product.image = storedImages.isEmpty() ? null : primaryImageUrl(product.id);
+        product.images = storedImages.stream()
+                .map(x -> imageDisplayUrl(product.id, x))
+                .toList();
+        product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0));
         return product;
     }
 
