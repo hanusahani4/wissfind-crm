@@ -8,7 +8,12 @@ import jakarta.persistence.*;
 })
 public class ProductImage extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    /**
+     * Do not eagerly load the parent Product for every image row. Image queries
+     * already know the product id and the controller accesses the relation only
+     * when it actually needs ownership information.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     public Product product;
 
