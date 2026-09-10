@@ -24,6 +24,9 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+cloudinary:
+  url: ${CLOUDINARY_URL:}
+
 app:
   jwt:
     secret: ${JWT_SECRET:change-this-development-secret-key-at-least-32-bytes-long}
