@@ -13,7 +13,7 @@ public class ProductImage extends BaseEntity {
     public Product product;
 
     @Lob
-    @Basic(fetch = FetchType.LAZY)
+    @Basic(fetch = FetchType.EAGER)
     @Column(name = "image_data", nullable = false, columnDefinition = "LONGBLOB")
     public byte[] imageData;
 
