@@ -16,7 +16,6 @@ export const routes: Routes = [
   { path: 'compare', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/compare.component').then(m => m.CompareComponent) },
   { path: 'price-alerts', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/price-alerts.component').then(m => m.PriceAlertsComponent) },
   { path: 'returns', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/returns.component').then(m => m.ReturnsComponent) },
-  { path: 'ai-bundles', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/ai-bundles.component').then(m => m.AiBundlesComponent) },
   { path: 'admin', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/admin.component').then(m => m.AdminComponent) },
   { path: 'seller/register', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/seller-register.component').then(m => m.SellerRegisterComponent) },
   { path: 'seller', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller.component').then(m => m.SellerComponent) },
