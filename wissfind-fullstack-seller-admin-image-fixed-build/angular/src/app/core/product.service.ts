@@ -5,12 +5,15 @@ import { Product } from './product.model';
 @Injectable({providedIn:'root'})
 export class ProductService {
   readonly products: Product[] = [];
-  /** Changes whenever the shared catalog array changes, so OnPush/zoneless views update immediately. */
   readonly productsVersion = signal(0);
   private loaded = false;
 
   constructor(private api: BackendApiService) {}
 
+  /**
+   * Legacy full-catalog loader retained for screens that explicitly need the
+   * complete catalogue. Customer catalogue pages should use loadPage().
+   */
   async load(signal?: AbortSignal): Promise<void> {
     if (this.loaded) return;
     try {
@@ -19,21 +22,25 @@ export class ProductService {
       this.productsVersion.update(v => v + 1);
       this.loaded = true;
     } catch {
-      // Navigation can abort this request. Do not clear data loaded by the next page.
       if (signal?.aborted) return;
-      // Do not fall back to dummy products. The UI should show an empty catalog
-      // when the real backend is unavailable.
       this.products.splice(0, this.products.length);
       this.productsVersion.update(v => v + 1);
     }
   }
 
+  /** Server-side paginated catalogue. Only the requested page is transferred. */
   async loadPage(page: number, size = 10, search = '', signal?: AbortSignal): Promise<{items: Product[]; total: number; totalPages: number}> {
     try {
-      const params = `page=${Math.max(0, page)}&size=${Math.min(50, Math.max(1, size))}&search=${encodeURIComponent(search)}`;
-      const data: any = await this.api.get(`/products/paged?${params}`, signal);
-      const items = Array.isArray(data?.content) ? data.content.map((x: any) => this.map(x)) : [];
-      return { items, total: Number(data?.totalElements || 0), totalPages: Math.max(1, Number(data?.totalPages || 1)) };
+      const safePage = Math.max(0, page);
+      const safeSize = Math.min(50, Math.max(1, size));
+      const params = `page=${safePage}&size=${safeSize}&search=${encodeURIComponent(search.trim())}`;
+      const data:any = await this.api.get(`/products/paged?${params}`, signal);
+      const items = Array.isArray(data?.content) ? data.content.map((x:any) => this.map(x)) : [];
+      return {
+        items,
+        total: Number(data?.totalElements || 0),
+        totalPages: Math.max(1, Number(data?.totalPages || 1))
+      };
     } catch {
       return { items: [], total: 0, totalPages: 1 };
     }
