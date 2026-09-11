@@ -34,7 +34,10 @@ export class ReviewService {
   }
 
   isReviewLiked(reviewId:string){return this.likes.has(reviewId);}
-  async getProductLikeCount(_productId:string){return 0;}
+
+  // These are intentionally synchronous because the product-detail template
+  // renders them directly. Returning a Promise here displayed "[object Promise]".
+  getProductLikeCount(_productId:string){return 0;}
   isProductLiked(_productId:string){return false;}
-  async toggleProductLike(_productId:string){return false;}
+  toggleProductLike(_productId:string){return false;}
 }
