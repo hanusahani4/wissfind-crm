@@ -54,7 +54,6 @@ public class ProductController {
         return result;
     }
 
-    /** Server-side catalogue pagination used by compare and price-alert pages. */
     @GetMapping("/paged")
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Product> paged(
@@ -134,6 +133,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('SELLER')")
+    @Transactional
     public Product update(@PathVariable Long id, @RequestBody Product input) {
         Product product = owned(id);
         normalizeAndValidate(input, id);
@@ -164,6 +164,12 @@ public class ProductController {
         product.colors = unique(input.colors);
         product.sizes = unique(input.sizes);
         product.status = statusForUpdate(oldStatus, product.stock);
+
+        // The edit screen removes an existing image from its local draft first.
+        // Reconcile that submitted image list here so the database and Cloudinary
+        // are updated when the user finally clicks "Update product".
+        reconcileSubmittedImages(product, input.images);
+
         return withImages(repo.save(product));
     }
 
@@ -181,10 +187,6 @@ public class ProductController {
         return withImages(repo.save(product));
     }
 
-    /**
-     * Legacy endpoint for old DB-backed images. New products return Cloudinary
-     * HTTPS URLs directly in product.image/product.images and never use this endpoint.
-     */
     @Transactional(readOnly = true)
     @GetMapping("/{productId}/image")
     public ResponseEntity<byte[]> primaryImage(@PathVariable Long productId) {
@@ -193,7 +195,6 @@ public class ProductController {
         return imageResponse(image);
     }
 
-    /** Legacy endpoint retained so existing DB-backed images remain accessible. */
     @Transactional(readOnly = true)
     @GetMapping("/{productId}/images/{imageId}")
     public ResponseEntity<byte[]> image(@PathVariable Long productId, @PathVariable Long imageId) {
@@ -213,7 +214,6 @@ public class ProductController {
             try {
                 type = MediaType.parseMediaType(image.contentType);
             } catch (Exception ignored) {
-                // Keep safe binary fallback.
             }
         }
         return ResponseEntity.ok()
@@ -234,10 +234,7 @@ public class ProductController {
         }
         cloudinaryImages.delete(image.cloudinaryPublicId);
         imageRepo.delete(image);
-        List<ProductImage> remaining = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
-        for (int i = 0; i < remaining.size(); i++) remaining.get(i).displayOrder = i;
-        imageRepo.saveAll(remaining);
-        product.image = remaining.isEmpty() ? null : imageDisplayUrl(product.id, remaining.get(0));
+        reorderImages(product);
         return withImages(repo.save(product));
     }
 
@@ -335,11 +332,7 @@ public class ProductController {
             String publicId = "product-" + hash.substring(0, 32);
             CloudinaryImageService.UploadedImage uploaded;
             try {
-                uploaded = cloudinaryImages.upload(
-                        bytes,
-                        "wissfind/products/" + product.id,
-                        publicId
-                );
+                uploaded = cloudinaryImages.upload(bytes, "wissfind/products/" + product.id, publicId);
             } catch (Exception e) {
                 throw new IllegalStateException("Unable to upload product image to Cloudinary", e);
             }
@@ -367,25 +360,49 @@ public class ProductController {
         }
     }
 
-    private void deleteCloudinaryAssets(List<ProductImage> images) {
-        for (ProductImage image : images) {
-            cloudinaryImages.delete(image.cloudinaryPublicId);
+    /** Remove existing images that were removed from the edit form. */
+    private void reconcileSubmittedImages(Product product, List<String> submittedImages) {
+        if (submittedImages == null) return;
+
+        Set<String> keep = submittedImages.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .collect(Collectors.toSet());
+
+        List<ProductImage> existing = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
+        for (ProductImage image : existing) {
+            String currentUrl = imageDisplayUrl(product.id, image);
+            if (!keep.contains(currentUrl)) {
+                cloudinaryImages.delete(image.cloudinaryPublicId);
+                imageRepo.delete(image);
+            }
         }
+        reorderImages(product);
+    }
+
+    private void reorderImages(Product product) {
+        List<ProductImage> remaining = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
+        for (int i = 0; i < remaining.size(); i++) remaining.get(i).displayOrder = i;
+        imageRepo.saveAll(remaining);
+        product.image = remaining.isEmpty() ? null : imageDisplayUrl(product.id, remaining.get(0));
+    }
+
+    private void deleteCloudinaryAssets(List<ProductImage> images) {
+        for (ProductImage image : images) cloudinaryImages.delete(image.cloudinaryPublicId);
     }
 
     private void validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Empty image file received.");
         if (file.getSize() > MAX_IMAGE_SIZE) throw new IllegalArgumentException("Each image must be 5 MB or smaller.");
         String type = file.getContentType();
-        if (type == null || !Set.of("image/jpeg", "image/png", "image/webp", "image/gif")
-                .contains(type.toLowerCase(Locale.ROOT))) {
+        if (type == null || !Set.of("image/jpeg", "image/png", "image/webp", "image/gif").contains(type.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Only JPG, PNG, WEBP and GIF images are allowed.");
         }
     }
 
     private String safeFileName(MultipartFile file) {
-        return Optional.ofNullable(file.getOriginalFilename()).orElse("image")
-                .replace("\\", "_").replace("/", "_");
+        return Optional.ofNullable(file.getOriginalFilename()).orElse("image").replace("\\", "_").replace("/", "_");
     }
 
     private String sha256(byte[] bytes) {
@@ -401,14 +418,8 @@ public class ProductController {
     }
 
     private String imageDisplayUrl(Long productId, ProductImage image) {
-        if (image.cloudinaryUrl != null && !image.cloudinaryUrl.isBlank()) {
-            return image.cloudinaryUrl;
-        }
+        if (image.cloudinaryUrl != null && !image.cloudinaryUrl.isBlank()) return image.cloudinaryUrl;
         return legacyImageUrl(productId, image.id);
-    }
-
-    private String primaryImageUrl(Long productId) {
-        return "/api/products/" + productId + "/image";
     }
 
     private void populateImages(List<Product> products) {
@@ -416,25 +427,17 @@ public class ProductController {
         List<Long> productIds = products.stream().map(p -> p.id).filter(Objects::nonNull).toList();
         if (productIds.isEmpty()) return;
         Map<Long, List<ProductImage>> imagesByProduct = imageRepo.findByProductIds(productIds)
-                .stream()
-                .collect(Collectors.groupingBy(
-                        image -> image.product.id,
-                        LinkedHashMap::new,
-                        Collectors.toList()));
+                .stream().collect(Collectors.groupingBy(image -> image.product.id, LinkedHashMap::new, Collectors.toList()));
         for (Product product : products) {
             List<ProductImage> storedImages = imagesByProduct.getOrDefault(product.id, Collections.emptyList());
-            product.images = storedImages.stream()
-                    .map(image -> imageDisplayUrl(product.id, image))
-                    .toList();
+            product.images = storedImages.stream().map(image -> imageDisplayUrl(product.id, image)).toList();
             product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0));
         }
     }
 
     private Product withImages(Product product) {
         List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
-        product.images = storedImages.stream()
-                .map(x -> imageDisplayUrl(product.id, x))
-                .toList();
+        product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList();
         product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0));
         return product;
     }
