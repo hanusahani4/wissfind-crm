@@ -17,12 +17,7 @@ import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Keeps legacy /api/products/{id}/image URLs working after product images
- * moved to Cloudinary. It first uses the product's stored image URL and then
- * falls back to the first Cloudinary-backed ProductImage when the product's
- * image column still contains an old relative URL.
- */
+/** Keeps legacy primary-image URLs working after the Cloudinary migration. */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
@@ -32,8 +27,7 @@ public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
     private final ProductRepository products;
     private final ProductImageRepository images;
 
-    public ProductPrimaryImageRedirectFilter(ProductRepository products,
-                                              ProductImageRepository images) {
+    public ProductPrimaryImageRedirectFilter(ProductRepository products, ProductImageRepository images) {
         this.products = products;
         this.images = images;
     }
@@ -64,16 +58,19 @@ public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // Some older products have a relative product.image value while
-            // their ProductImage rows have already been uploaded to Cloudinary.
-            for (ProductImage image : images.findByProductIdOrderByDisplayOrderAsc(productId)) {
-                if (isHttpUrl(image.cloudinaryUrl)) {
-                    response.sendRedirect(image.cloudinaryUrl);
+            // Some older products have image rows in ProductImage but their
+            // products.image field is empty. Resolve the first stored image.
+            if (product != null) {
+                ProductImage first = images.findByProductIdOrderByDisplayOrderAsc(productId)
+                        .stream().findFirst().orElse(null);
+                String cloudinaryUrl = first == null ? null : first.cloudinaryUrl;
+                if (isHttpUrl(cloudinaryUrl)) {
+                    response.sendRedirect(cloudinaryUrl);
                     return;
                 }
             }
         } catch (Exception ignored) {
-            // Fall through to ProductController's legacy endpoint.
+            // Fall through to the existing legacy endpoint.
         }
 
         filterChain.doFilter(request, response);
