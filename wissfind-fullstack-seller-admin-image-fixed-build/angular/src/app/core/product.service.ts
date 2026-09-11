@@ -8,6 +8,8 @@ export class ProductService {
   readonly productsVersion = signal(0);
   private loaded = false;
   private loading = false;
+  private readonly cachePrefix = 'wissfind-product-cache:';
+  private readonly cacheTtlMs = 10 * 60 * 1000;
 
   constructor(private api: BackendApiService) {}
 
@@ -20,6 +22,7 @@ export class ProductService {
       const firstItems = Array.isArray(first?.content) ? first.content.map((x:any) => this.map(x)) : [];
       this.products.splice(0, this.products.length, ...firstItems);
       this.productsVersion.update(v => v + 1);
+      firstItems.forEach((p: Product) => this.saveCachedProduct(p));
       const totalPages = Math.max(1, Number(first?.totalPages || 1));
       if (totalPages > 1 && !signal?.aborted) {
         setTimeout(() => { void this.prefetchRemaining(totalPages, pageSize, signal); }, 250);
@@ -52,6 +55,7 @@ export class ProductService {
         if (nextProducts.length) {
           this.products.push(...nextProducts);
           this.productsVersion.update(v => v + 1);
+          nextProducts.forEach(p => this.saveCachedProduct(p));
         }
       }
     } catch {
@@ -69,6 +73,7 @@ export class ProductService {
       const params = `page=${safePage}&size=${safeSize}&search=${encodeURIComponent(search.trim())}`;
       const data:any = await this.api.get(`/products/paged?${params}`, signal);
       const items = Array.isArray(data?.content) ? data.content.map((x:any) => this.map(x)) : [];
+      items.forEach((p: Product) => this.saveCachedProduct(p));
       return { items, total: Number(data?.totalElements || 0), totalPages: Math.max(1, Number(data?.totalPages || 1)) };
     } catch {
       return { items: [], total: 0, totalPages: 1 };
@@ -82,17 +87,19 @@ export class ProductService {
   }
 
   async getByIdAsync(id:string, signal?:AbortSignal): Promise<Product|undefined> {
+    // The product detail page gets a cached snapshot immediately on a hard
+    // refresh. The API request still runs so price, stock and images become
+    // fresh in the background.
     try {
       const data:any = await this.api.get(`/products/${encodeURIComponent(id)}`, signal);
       const mapped=this.map(data);
+      this.saveCachedProduct(mapped);
       const existing=this.products.find(x=>String(x.id)===String(id));
-
       if(existing){
         Object.assign(existing, mapped);
         this.productsVersion.update(v => v + 1);
         return existing;
       }
-
       this.products.push(mapped);
       this.productsVersion.update(v => v + 1);
       return mapped;
@@ -109,6 +116,12 @@ export class ProductService {
     if(existing) return existing;
 
     if(id){
+      const cached = this.readCachedProduct(id);
+      if (cached) {
+        this.products.push(cached);
+        return cached;
+      }
+
       const placeholder:Product={
         id:String(id), name:'', category:'Home & Living', subcategory:'', type:'',
         brand:'', gender:'', material:'', warranty:'', returnDays:7, weight:undefined,
@@ -122,11 +135,35 @@ export class ProductService {
     return undefined;
   }
 
+  private saveCachedProduct(product: Product) {
+    if (typeof localStorage === 'undefined' || !product?.id) return;
+    try {
+      localStorage.setItem(this.cachePrefix + String(product.id), JSON.stringify({
+        savedAt: Date.now(), product
+      }));
+    } catch { /* storage may be unavailable or full */ }
+  }
+
+  private readCachedProduct(id: string): Product|undefined {
+    if (typeof localStorage === 'undefined') return undefined;
+    try {
+      const raw = localStorage.getItem(this.cachePrefix + String(id));
+      if (!raw) return undefined;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.product || Date.now() - Number(parsed.savedAt || 0) > this.cacheTtlMs) {
+        localStorage.removeItem(this.cachePrefix + String(id));
+        return undefined;
+      }
+      return this.map(parsed.product);
+    } catch {
+      return undefined;
+    }
+  }
+
   private map(x:any):Product {
     const images = Array.isArray(x.images) ? x.images : [];
     const normalized = images.map((u:string)=>this.absoluteUrl(u));
     const image = this.absoluteUrl(x.image || normalized[0] || '');
-    const fallback = image || (x.id != null ? `http://localhost:8080/api/products/${encodeURIComponent(String(x.id))}/image` : '');
     return {
       id:String(x.id), name:x.name,
       seller: x.seller ? { id: Number(x.seller.id), name: x.seller.name || '', phone: x.seller.phone || '' } : undefined,
@@ -134,8 +171,8 @@ export class ProductService {
       brand:x.brand||'', gender:x.gender||'', material:x.material||'', warranty:x.warranty||'',
       returnDays:x.returnDays==null?7:Number(x.returnDays), weight:x.weight==null?undefined:Number(x.weight), dimensions:x.dimensions||'', hsnCode:x.hsnCode||'',
       taxIncluded:x.taxIncluded!==false, featured:!!x.featured, gstPercent:Number(x.gstPercent||0), shippingFee:Number(x.shippingFee||0), platformFee:Number(x.platformFee||0), stock:Number(x.stock||0),
-      price:Number(x.price||0), oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice), rating:Number(x.rating||0), reviews:Number(x.reviews||0), image:fallback,
-      images:normalized.length ? normalized : (fallback?[fallback]:[]), description:x.description||'', tags:Array.isArray(x.tags)?x.tags:[], colors:Array.isArray(x.colors)?x.colors:[], sizes:Array.isArray(x.sizes)?x.sizes:[]
+      price:Number(x.price||0), oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice), rating:Number(x.rating||0), reviews:Number(x.reviews||0), image,
+      images:normalized.length ? normalized : (image?[image]:[]), description:x.description||'', tags:Array.isArray(x.tags)?x.tags:[], colors:Array.isArray(x.colors)?x.colors:[], sizes:Array.isArray(x.sizes)?x.sizes:[]
     };
   }
 
