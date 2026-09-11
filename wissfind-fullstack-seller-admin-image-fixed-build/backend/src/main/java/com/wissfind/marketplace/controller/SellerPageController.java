@@ -66,7 +66,11 @@ public class SellerPageController {
         if(rows==null||rows.isEmpty()) return;
         var ids=rows.stream().map(p->p.id).filter(Objects::nonNull).toList();
         var grouped=imageRepo.findByProductIds(ids).stream().collect(java.util.stream.Collectors.groupingBy(x->x.product.id,LinkedHashMap::new,java.util.stream.Collectors.toList()));
-        for(var p:rows){var imgs=grouped.getOrDefault(p.id,Collections.emptyList());p.images=imgs.stream().map(x->"/api/products/"+p.id+"/images/"+x.id).toList();if((p.image==null||p.image.isBlank())&&!p.images.isEmpty())p.image=p.images.get(0);}
+        for(var p:rows){
+            var imgs=grouped.getOrDefault(p.id,Collections.emptyList());
+            p.images=imgs.stream().map(x->x.cloudinaryUrl!=null&&!x.cloudinaryUrl.isBlank()?x.cloudinaryUrl:"/api/products/"+p.id+"/images/"+x.id).toList();
+            if((p.image==null||p.image.isBlank())&&!p.images.isEmpty()) p.image=p.images.get(0);
+        }
     }
 
     private Map<String,Object> mapReview(Review r){Map<String,Object> m=new LinkedHashMap<>();m.put("id",r.id);m.put("productId",r.product.id);m.put("productName",r.product.name);m.put("seller",r.product.seller==null?null:r.product.seller.name);m.put("author",r.customer.name);m.put("rating",r.rating);m.put("title",r.title);m.put("text",r.text);m.put("likes",r.likes);m.put("date",r.createdAt);return m;}
