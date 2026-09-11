@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, ApplicationRef } from '@angular/core';
 import { BackendApiService } from './backend-api.service';
 
 export interface ProductReview {
@@ -10,14 +10,27 @@ export interface ProductReview {
 export class ReviewService {
   private likes=new Set<string>();
 
-  constructor(private api:BackendApiService){}
+  constructor(private api:BackendApiService, private appRef:ApplicationRef){}
 
   async getReviews(productId:string, signal?:AbortSignal):Promise<ProductReview[]> {
     try {
       const rows:any[]=await this.api.get(`/reviews/product/${productId}`, signal);
-      return rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),
+      const result = rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),
         date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
-    } catch { return []; }
+
+      // This app uses Angular's zoneless change detection. The component that
+      // awaits this method assigns the returned review list in the next
+      // microtask, so the refresh must happen one macrotask later. Otherwise
+      // the reviews/rating can appear only after the user clicks a star or
+      // otherwise interacts with the page.
+      setTimeout(() => {
+        try { this.appRef.tick(); } catch { /* keep the review request successful */ }
+      }, 0);
+
+      return result;
+    } catch {
+      return [];
+    }
   }
 
   async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>) {
