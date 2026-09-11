@@ -40,7 +40,56 @@ h2 { font-size: 30px; }
 .error { color: var(--danger); font-size: 13px; }
 .success { color: var(--success); font-size: 13px; }
 
+/* Customer header: keep it pinned and always reserve space for right-side actions. */
+.header { position: sticky !important; top: 0 !important; z-index: 1000 !important; width: 100%; }
+.header .container { width: calc(100% - 32px); max-width: 1850px; }
+.header .nav { min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; padding-top: 8px; padding-bottom: 8px; }
+.header .brand { flex: 0 0 auto; }
+.header .links { flex: 1 1 auto; min-width: 0; gap: 13px; font-size: 13px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.header .links::-webkit-scrollbar { display: none; }
+.header .links a { flex: 0 0 auto; }
+.header .search { flex: 0 1 270px; width: 270px; max-width: 270px; min-width: 190px; }
+.header .actions { flex: 0 0 auto; min-width: max-content; margin-left: 0; gap: 4px; overflow: visible; }
+.header .orders-link { padding: 8px 8px; }
+.header .cart-link { min-width: 76px; }
+.header .icon-btn { padding: 9px 12px; }
+.header .seller-link, .header .workspace-link { white-space: nowrap; flex: 0 0 auto; }
+
+@media (max-width: 1500px) and (min-width: 701px) {
+  .header .nav { gap: 9px; }
+  .header .links { gap: 10px; font-size: 12px; }
+  .header .search { flex-basis: 230px; width: 230px; max-width: 230px; min-width: 170px; }
+  .header .cart-link { min-width: 64px; }
+  .header .cart-copy { display: none; }
+  .header .orders-link { padding-left: 6px; padding-right: 6px; }
+  .header .icon-btn { padding-left: 9px; padding-right: 9px; font-size: 12px; }
+}
+
+@media (max-width: 1350px) and (min-width: 701px) {
+  .header .nav { flex-wrap: wrap; }
+  .header .links { order: 3; flex: 1 1 100%; width: 100%; padding: 4px 0 2px; }
+  .header .search { order: 2; flex: 1 1 260px; max-width: 360px; }
+  .header .actions { order: 2; margin-left: auto; }
+}
+
 @media (max-width: 700px) {
   .container { width: calc(100% - 20px); }
   .page { padding-top: 24px; }
+  .header .container { width: calc(100% - 20px); }
+  .header .nav { min-height: auto; gap: 8px 10px; padding: 9px 0; flex-wrap: wrap; }
+  .header .brand { font-size: 19px; }
+  .header .actions { order: 2; margin-left: auto; max-width: calc(100% - 125px); overflow-x: auto; }
+  .header .links { order: 3; flex-basis: 100%; width: 100%; gap: 15px; padding: 5px 2px 4px; border-top: 1px solid var(--line); }
+  .header .search { order: 4; flex-basis: 100%; width: 100%; max-width: none; min-width: 0; }
+  .header .search input { padding: 10px 0; }
+  .header .orders-link { display: inline-flex; font-size: 12px; padding: 8px 9px; }
+  .header .cart-copy { display: none; }
+  .header .cart-link { min-width: 32px; }
+  .header .icon-btn { padding: 8px 11px; }
+}
+
+@media (max-width: 430px) {
+  .header .actions { max-width: calc(100% - 115px); }
+  .header .icon-btn { padding: 8px 10px; font-size: 12px; }
+  .header .links { gap: 14px; font-size: 13px; }
 }
