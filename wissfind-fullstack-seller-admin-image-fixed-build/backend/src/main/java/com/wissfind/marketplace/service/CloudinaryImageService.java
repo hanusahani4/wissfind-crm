@@ -37,6 +37,20 @@ public class CloudinaryImageService {
         return new UploadedImage(returnedPublicId, secureUrl);
     }
 
+    /** Build the current HTTPS delivery URL from a stored Cloudinary public id. */
+    public String secureUrl(String publicId) {
+        if (cloudinary == null || publicId == null || publicId.isBlank()) return null;
+        try {
+            return cloudinary.url()
+                    .secure(true)
+                    .resourceType("image")
+                    .type("upload")
+                    .generate(publicId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     public void delete(String publicId) {
         if (publicId == null || publicId.isBlank() || cloudinary == null) return;
         try {
