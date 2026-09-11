@@ -9,8 +9,6 @@ export class ProductService {
   private loaded = false;
   private loading = false;
 
-  constructor(private api: BackendApiService) {}
-
   /**
    * Load only the first visible page immediately. The existing Home page keeps
    * its client-side filters/pagination, so the remaining server pages are
@@ -120,6 +118,16 @@ export class ProductService {
       this.productsVersion.update(v => v + 1);
       return product;
     } catch {
+      // On a direct browser refresh the in-memory catalogue is empty. If the
+      // single-product request is temporarily unavailable, fall back to the
+      // catalogue endpoint so the product detail page does not render blank.
+      if (!signal?.aborted) {
+        try {
+          await this.load(signal);
+        } catch {
+          // Keep the final local-cache fallback below.
+        }
+      }
       return this.products.find(p=>String(p.id)===String(id));
     }
   }
