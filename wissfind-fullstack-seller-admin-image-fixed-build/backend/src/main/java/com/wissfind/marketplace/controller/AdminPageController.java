@@ -118,7 +118,11 @@ public class AdminPageController {
         if(rows==null||rows.isEmpty()) return;
         var ids=rows.stream().map(p->p.id).filter(Objects::nonNull).toList();
         var grouped=imageRepo.findByProductIds(ids).stream().collect(java.util.stream.Collectors.groupingBy(x->x.product.id,LinkedHashMap::new,java.util.stream.Collectors.toList()));
-        for(var p:rows){var imgs=grouped.getOrDefault(p.id,Collections.emptyList());p.images=imgs.stream().map(x->"/api/products/"+p.id+"/images/"+x.id).toList();if((p.image==null||p.image.isBlank())&&!p.images.isEmpty())p.image=p.images.get(0);}
+        for(var p:rows){
+            var imgs=grouped.getOrDefault(p.id,Collections.emptyList());
+            p.images=imgs.stream().map(x->x.cloudinaryUrl!=null&&!x.cloudinaryUrl.isBlank()?x.cloudinaryUrl:"/api/products/"+p.id+"/images/"+x.id).toList();
+            if((p.image==null||p.image.isBlank())&&!p.images.isEmpty()) p.image=p.images.get(0);
+        }
     }
 
     private Map<String,Object> mapReview(Review r){
