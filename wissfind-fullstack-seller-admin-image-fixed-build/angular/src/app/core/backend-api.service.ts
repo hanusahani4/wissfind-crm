@@ -17,32 +17,22 @@ export class BackendApiService {
   }
 
   /**
-   * Angular 22 is using zoneless change detection in this application.
-   * API promises can therefore complete without automatically refreshing
-   * templates that are driven by ordinary component fields.
-   *
-   * The refresh is intentionally queued one microtask later than the caller's
-   * await continuation. This is important for direct browser refreshes: the
-   * component must first assign the API result to its fields (for example,
-   * ProductDetailComponent.product), and only then should Angular run a view
-   * refresh. A single queueMicrotask() can run before that await continuation.
+   * The app uses Angular zoneless change detection. API calls are exposed as
+   * promises and components assign their results after `await`. A timer is
+   * deliberately used here instead of queueMicrotask(): the timer runs after
+   * the component's await continuation has assigned its state, so a direct
+   * browser refresh renders the loaded page correctly.
    */
   private refreshView(): void {
-    queueMicrotask(() => {
-      queueMicrotask(() => {
-        try {
-          this.appRef.tick();
-        } catch {
-          // Ignore a refresh error; the original API result must not be changed.
-        }
-      });
-    });
+    setTimeout(() => {
+      try {
+        this.appRef.tick();
+      } catch {
+        // Rendering must never turn a successful API response into an error.
+      }
+    }, 0);
   }
 
-  /**
-   * Every request can be cancelled by the page that created it.
-   * This is important when navigating away from a slow page.
-   */
   private request<T>(source: Observable<T>, signal?: AbortSignal): Promise<T> {
     if (!signal) {
       return firstValueFrom(source).then(
@@ -110,7 +100,6 @@ export class BackendApiService {
     }), signal);
   }
 
-  /** Download an authenticated binary response such as a PDF shipping label. */
   getBlob(path: string, signal?: AbortSignal): Promise<Blob> {
     return this.request(this.http.get(`${this.baseUrl}${path}`, {
       headers: this.authHeaders(),
@@ -118,10 +107,6 @@ export class BackendApiService {
     }), signal);
   }
 
-  /**
-   * Upload multipart/form-data.
-   * Do NOT set Content-Type here; the browser must add the boundary.
-   */
   upload<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
     let headers = this.authHeaders();
     headers = headers.delete('Content-Type');
