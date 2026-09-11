@@ -84,11 +84,21 @@ export class ProductService {
   async getByIdAsync(id:string, signal?:AbortSignal): Promise<Product|undefined> {
     try {
       const data:any = await this.api.get(`/products/${encodeURIComponent(id)}`, signal);
-      const product=this.map(data);
-      const index=this.products.findIndex(x=>String(x.id)===String(id));
-      if(index>=0) this.products[index]=product; else this.products.push(product);
+      const mapped=this.map(data);
+      const existing=this.products.find(x=>String(x.id)===String(id));
+
+      // ProductDetailComponent can hold a reference returned before the HTTP
+      // request completes. Mutate that same object instead of replacing it so
+      // the detail view becomes populated after a hard browser refresh.
+      if(existing){
+        Object.assign(existing, mapped);
+        this.productsVersion.update(v => v + 1);
+        return existing;
+      }
+
+      this.products.push(mapped);
       this.productsVersion.update(v => v + 1);
-      return product;
+      return mapped;
     } catch {
       if (!signal?.aborted) {
         try { await this.load(signal); } catch { /* local fallback below */ }
@@ -97,7 +107,26 @@ export class ProductService {
     }
   }
 
-  getById(id:string) { return this.products.find(p=>String(p.id)===String(id)); }
+  getById(id:string): Product|undefined {
+    const existing=this.products.find(p=>String(p.id)===String(id));
+    if(existing) return existing;
+
+    // Keep a stable object reference for direct product-page loads. The async
+    // request above will populate this exact object when the API responds.
+    // This avoids relying on change detection to replace an *ngIf-bound field.
+    if(id){
+      const placeholder:Product={
+        id:String(id), name:'', category:'Home & Living', subcategory:'', type:'',
+        brand:'', gender:'', material:'', warranty:'', returnDays:7, weight:undefined,
+        dimensions:'', hsnCode:'', taxIncluded:true, featured:false, gstPercent:0,
+        shippingFee:0, platformFee:0, stock:0, price:0, oldPrice:undefined,
+        rating:0, reviews:0, image:'', images:[], description:'', tags:[], colors:[], sizes:[]
+      };
+      this.products.push(placeholder);
+      return placeholder;
+    }
+    return undefined;
+  }
 
   private map(x:any):Product {
     const images = Array.isArray(x.images) ? x.images : [];
