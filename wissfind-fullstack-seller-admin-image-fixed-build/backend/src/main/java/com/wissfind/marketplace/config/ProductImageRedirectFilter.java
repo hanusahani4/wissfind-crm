@@ -1,9 +1,7 @@
 package com.wissfind.marketplace.config;
 
-import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.ProductImage;
 import com.wissfind.marketplace.repo.ProductImageRepository;
-import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.service.CloudinaryImageService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -15,31 +13,38 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Keeps legacy product-image URLs working after the Cloudinary migration.
- * This is intentionally global so customer, seller and admin screens all
- * behave the same when an old relative image URL is still present in the UI.
+ * Product images are delivered from Cloudinary only.
+ *
+ * The frontend may still have old API image URLs cached in product/order data.
+ * Those URLs are intercepted here. If the image already has a Cloudinary URL
+ * (or public id), the request is redirected to Cloudinary. If an old database
+ * row still contains imageData, it is migrated to Cloudinary once and the
+ * database row is updated; the browser still receives the image from
+ * Cloudinary, never from the application server.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class ProductImageRedirectFilter extends OncePerRequestFilter {
 
-    private static final Pattern PATH = Pattern.compile(
+    private static final Pattern PRIMARY = Pattern.compile(
+            "^/api/products/(\\d+)/image/?$"
+    );
+    private static final Pattern BY_ID = Pattern.compile(
             "^/api/products/(\\d+)/images/(\\d+)/?$"
     );
 
     private final ProductImageRepository images;
-    private final ProductRepository products;
     private final CloudinaryImageService cloudinary;
 
     public ProductImageRedirectFilter(ProductImageRepository images,
-                                      ProductRepository products,
                                       CloudinaryImageService cloudinary) {
         this.images = images;
-        this.products = products;
         this.cloudinary = cloudinary;
     }
 
@@ -53,49 +58,84 @@ public class ProductImageRedirectFilter extends OncePerRequestFilter {
             return;
         }
 
-        Matcher matcher = PATH.matcher(request.getRequestURI());
-        if (!matcher.matches()) {
+        ProductImage image = resolveImage(request.getRequestURI());
+
+        // These are image endpoints. Never serve image bytes from the backend.
+        if (image == null) {
+            if (PRIMARY.matcher(request.getRequestURI()).matches()
+                    || BY_ID.matcher(request.getRequestURI()).matches()) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Cloudinary image not found");
+                return;
+            }
             filterChain.doFilter(request, response);
             return;
         }
 
-        try {
-            Long productId = Long.valueOf(matcher.group(1));
-            Long imageId = Long.valueOf(matcher.group(2));
-            ProductImage image = images.findById(imageId).orElse(null);
-
-            if (image == null || image.product == null || !productId.equals(image.product.id)) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            // New rows normally have the URL. Migrated rows may only have the
-            // Cloudinary public id, so reconstruct the delivery URL on demand.
-            String url = image.cloudinaryUrl;
-            if (!isHttpUrl(url)) {
-                url = cloudinary.secureUrl(image.cloudinaryPublicId);
-            }
-
-            // Some existing rows may have lost the image-row URL while the
-            // Product still has its Cloudinary primary image URL. Use it as a
-            // final compatibility fallback rather than returning a 404.
-            if (!isHttpUrl(url)) {
-                Product product = products.findById(productId).orElse(null);
-                if (product != null && isHttpUrl(product.image)) {
-                    url = product.image;
-                }
-            }
-
-            if (isHttpUrl(url)) {
-                response.setStatus(HttpServletResponse.SC_FOUND);
-                response.setHeader("Location", url);
-                return;
-            }
-        } catch (Exception ignored) {
-            // Fall through to the existing legacy endpoint.
+        String url = image.cloudinaryUrl;
+        if (!isHttpUrl(url)) {
+            url = cloudinary.secureUrl(image.cloudinaryPublicId);
         }
 
-        filterChain.doFilter(request, response);
+        // One-time migration for legacy DB-backed images. This is migration,
+        // not image delivery: after this succeeds imageData is cleared and the
+        // actual browser request is redirected to Cloudinary.
+        if (!isHttpUrl(url) && image.imageData != null && image.imageData.length > 0) {
+            try {
+                String publicId = image.cloudinaryPublicId;
+                if (publicId == null || publicId.isBlank()) {
+                    publicId = "product-" + image.id;
+                }
+                CloudinaryImageService.UploadedImage uploaded = cloudinary.upload(
+                        image.imageData,
+                        "wissfind/products/" + image.product.id,
+                        publicId
+                );
+                image.cloudinaryPublicId = uploaded.publicId();
+                image.cloudinaryUrl = uploaded.secureUrl();
+                image.imageData = null;
+                image = images.save(image);
+                url = image.cloudinaryUrl;
+            } catch (Exception ignored) {
+                // Do not expose database bytes. The request remains Cloudinary-only.
+            }
+        }
+
+        if (isHttpUrl(url)) {
+            response.sendRedirect(url);
+            return;
+        }
+
+        response.sendError(HttpServletResponse.SC_NOT_FOUND, "Cloudinary image not found");
+    }
+
+    private ProductImage resolveImage(String uri) {
+        Matcher byId = BY_ID.matcher(uri);
+        if (byId.matches()) {
+            try {
+                Long productId = Long.valueOf(byId.group(1));
+                Long imageId = Long.valueOf(byId.group(2));
+                ProductImage image = images.findById(imageId).orElse(null);
+                if (image == null || image.product == null || !Objects.equals(image.product.id, productId)) {
+                    return null;
+                }
+                return image;
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        Matcher primary = PRIMARY.matcher(uri);
+        if (primary.matches()) {
+            try {
+                Long productId = Long.valueOf(primary.group(1));
+                List<ProductImage> productImages = images.findByProductIdOrderByDisplayOrderAsc(productId);
+                return productImages.isEmpty() ? null : productImages.get(0);
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private boolean isHttpUrl(String value) {
