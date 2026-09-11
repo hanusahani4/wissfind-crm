@@ -39,10 +39,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/razorpay/webhook").permitAll()
+                        // Public product/review reads are needed by a customer before login.
                         // Browser <img> requests cannot attach Angular's Bearer header.
                         .requestMatchers(HttpMethod.GET, "/api/products/*/images/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/*/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/category/**", "/api/products/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/product/*").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
                 .build();
