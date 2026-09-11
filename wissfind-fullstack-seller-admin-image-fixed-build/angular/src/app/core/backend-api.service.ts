@@ -17,18 +17,19 @@ export class BackendApiService {
   }
 
   /**
-   * The app uses Angular zoneless change detection. API calls are exposed as
-   * promises and components assign their results after `await`. A timer is
-   * deliberately used here instead of queueMicrotask(): the timer runs after
-   * the component's await continuation has assigned its state, so a direct
-   * browser refresh renders the loaded page correctly.
+   * Refresh the application after an awaited HTTP promise has returned to the
+   * calling component. A macrotask is intentional here: Promise callbacks
+   * and async/await continuations are microtasks, so scheduling the tick with
+   * setTimeout guarantees that ProductDetailComponent has already assigned
+   * the loaded product before the view is checked.
    */
   private refreshView(): void {
     setTimeout(() => {
       try {
         this.appRef.tick();
       } catch {
-        // Rendering must never turn a successful API response into an error.
+        // Never turn a successful API response into an application error just
+        // because a manual view refresh was not possible.
       }
     }, 0);
   }
