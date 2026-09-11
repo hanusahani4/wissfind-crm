@@ -5,9 +5,12 @@ import { CartService } from './cart.service';
 import { AuthService } from './auth.service';
 
 /**
- * Shared product links are opened as /product/:id.
- * On a fresh browser load, put that product into the cart and continue
- * directly to checkout. Normal in-app product navigation is unaffected.
+ * Shared product purchase links use /product/:id?shared=1.
+ *
+ * IMPORTANT:
+ * A normal product URL must NEVER be treated as a shared purchase link.
+ * This prevents a browser refresh on /product/:id from adding the product
+ * to the cart and redirecting the customer to checkout.
  */
 export const sharedProductGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
@@ -15,9 +18,10 @@ export const sharedProductGuard: CanActivateFn = async (route) => {
   const cart = inject(CartService);
   const auth = inject(AuthService);
 
-  // Only treat a fresh/direct browser load as a shared purchase link.
-  // Internal Angular navigation should continue to the normal product page.
-  if (router.navigated) {
+  // Only an explicitly generated shared purchase URL may trigger the
+  // add-to-cart + checkout flow. Normal/direct/refresh product URLs pass through.
+  const isSharedPurchaseLink = route.queryParamMap.get('shared') === '1';
+  if (!isSharedPurchaseLink) {
     return true;
   }
 
@@ -27,7 +31,7 @@ export const sharedProductGuard: CanActivateFn = async (route) => {
   const product = await products.getByIdAsync(id);
   if (!product) return true;
 
-  // Never create an order for an unavailable product.
+  // Never create a purchase flow for an unavailable product.
   if (Number(product.stock) <= 0) return true;
 
   cart.add(product);
@@ -35,7 +39,7 @@ export const sharedProductGuard: CanActivateFn = async (route) => {
 
   if (!auth.user()) {
     return router.createUrlTree(['/login'], {
-      queryParams: { returnUrl: '/checkout' }
+      queryParams: { returnUrl: `/product/${encodeURIComponent(id)}` }
     });
   }
 
