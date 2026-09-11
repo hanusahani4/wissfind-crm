@@ -19,17 +19,23 @@ export class BackendApiService {
   /**
    * Angular 22 is using zoneless change detection in this application.
    * API promises can therefore complete without automatically refreshing
-   * templates that are driven by ordinary component fields. Trigger one
-   * application refresh after every API completion so async state changes
-   * are reflected consistently across the customer/admin/seller screens.
+   * templates that are driven by ordinary component fields.
+   *
+   * The refresh is intentionally queued one microtask later than the caller's
+   * await continuation. This is important for direct browser refreshes: the
+   * component must first assign the API result to its fields (for example,
+   * ProductDetailComponent.product), and only then should Angular run a view
+   * refresh. A single queueMicrotask() can run before that await continuation.
    */
   private refreshView(): void {
     queueMicrotask(() => {
-      try {
-        this.appRef.tick();
-      } catch {
-        // Ignore a refresh error; the original API result must not be changed.
-      }
+      queueMicrotask(() => {
+        try {
+          this.appRef.tick();
+        } catch {
+          // Ignore a refresh error; the original API result must not be changed.
+        }
+      });
     });
   }
 
