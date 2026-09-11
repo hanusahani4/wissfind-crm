@@ -1,6 +1,8 @@
 package com.wissfind.marketplace.config;
 
 import com.wissfind.marketplace.entity.Product;
+import com.wissfind.marketplace.entity.ProductImage;
+import com.wissfind.marketplace.repo.ProductImageRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,13 +18,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Keeps the legacy /api/products/{id}/image URL used by existing orders
- * working after product images were moved to Cloudinary.
- *
- * Old order_items rows intentionally keep their checkout snapshot, including
- * this legacy URL. When that URL is requested, redirect it to the current
- * Cloudinary URL when the product has one. Legacy DB-backed products continue
- * through ProductController's original endpoint.
+ * Keeps legacy /api/products/{id}/image URLs working after product images
+ * moved to Cloudinary. It first uses the product's stored image URL and then
+ * falls back to the first Cloudinary-backed ProductImage when the product's
+ * image column still contains an old relative URL.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -31,9 +30,12 @@ public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
     private static final Pattern PATH = Pattern.compile("^/api/products/(\\d+)/image/?$");
 
     private final ProductRepository products;
+    private final ProductImageRepository images;
 
-    public ProductPrimaryImageRedirectFilter(ProductRepository products) {
+    public ProductPrimaryImageRedirectFilter(ProductRepository products,
+                                              ProductImageRepository images) {
         this.products = products;
+        this.images = images;
     }
 
     @Override
@@ -55,18 +57,31 @@ public class ProductPrimaryImageRedirectFilter extends OncePerRequestFilter {
         try {
             Long productId = Long.valueOf(matcher.group(1));
             Product product = products.findById(productId).orElse(null);
-            String imageUrl = product == null ? null : product.image;
 
-            if (imageUrl != null
-                    && !imageUrl.isBlank()
-                    && (imageUrl.startsWith("https://") || imageUrl.startsWith("http://"))) {
+            String imageUrl = product == null ? null : product.image;
+            if (isHttpUrl(imageUrl)) {
                 response.sendRedirect(imageUrl);
                 return;
             }
+
+            // Some older products have a relative product.image value while
+            // their ProductImage rows have already been uploaded to Cloudinary.
+            for (ProductImage image : images.findByProductIdOrderByDisplayOrderAsc(productId)) {
+                if (isHttpUrl(image.cloudinaryUrl)) {
+                    response.sendRedirect(image.cloudinaryUrl);
+                    return;
+                }
+            }
         } catch (Exception ignored) {
-            // Fall through to the existing legacy endpoint.
+            // Fall through to ProductController's legacy endpoint.
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isHttpUrl(String value) {
+        return value != null
+                && !value.isBlank()
+                && (value.startsWith("https://") || value.startsWith("http://"));
     }
 }
