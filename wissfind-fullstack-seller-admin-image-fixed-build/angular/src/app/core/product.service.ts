@@ -87,9 +87,6 @@ export class ProductService {
       const mapped=this.map(data);
       const existing=this.products.find(x=>String(x.id)===String(id));
 
-      // ProductDetailComponent can hold a reference returned before the HTTP
-      // request completes. Mutate that same object instead of replacing it so
-      // the detail view becomes populated after a hard browser refresh.
       if(existing){
         Object.assign(existing, mapped);
         this.productsVersion.update(v => v + 1);
@@ -111,9 +108,6 @@ export class ProductService {
     const existing=this.products.find(p=>String(p.id)===String(id));
     if(existing) return existing;
 
-    // Keep a stable object reference for direct product-page loads. The async
-    // request above will populate this exact object when the API responds.
-    // This avoids relying on change detection to replace an *ngIf-bound field.
     if(id){
       const placeholder:Product={
         id:String(id), name:'', category:'Home & Living', subcategory:'', type:'',
@@ -132,6 +126,7 @@ export class ProductService {
     const images = Array.isArray(x.images) ? x.images : [];
     const normalized = images.map((u:string)=>this.absoluteUrl(u));
     const image = this.absoluteUrl(x.image || normalized[0] || '');
+    const fallback = image || (x.id != null ? `http://localhost:8080/api/products/${encodeURIComponent(String(x.id))}/image` : '');
     return {
       id:String(x.id), name:x.name,
       seller: x.seller ? { id: Number(x.seller.id), name: x.seller.name || '', phone: x.seller.phone || '' } : undefined,
@@ -139,8 +134,8 @@ export class ProductService {
       brand:x.brand||'', gender:x.gender||'', material:x.material||'', warranty:x.warranty||'',
       returnDays:x.returnDays==null?7:Number(x.returnDays), weight:x.weight==null?undefined:Number(x.weight), dimensions:x.dimensions||'', hsnCode:x.hsnCode||'',
       taxIncluded:x.taxIncluded!==false, featured:!!x.featured, gstPercent:Number(x.gstPercent||0), shippingFee:Number(x.shippingFee||0), platformFee:Number(x.platformFee||0), stock:Number(x.stock||0),
-      price:Number(x.price||0), oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice), rating:Number(x.rating||0), reviews:Number(x.reviews||0), image,
-      images:normalized.length ? normalized : (image?[image]:[]), description:x.description||'', tags:Array.isArray(x.tags)?x.tags:[], colors:Array.isArray(x.colors)?x.colors:[], sizes:Array.isArray(x.sizes)?x.sizes:[]
+      price:Number(x.price||0), oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice), rating:Number(x.rating||0), reviews:Number(x.reviews||0), image:fallback,
+      images:normalized.length ? normalized : (fallback?[fallback]:[]), description:x.description||'', tags:Array.isArray(x.tags)?x.tags:[], colors:Array.isArray(x.colors)?x.colors:[], sizes:Array.isArray(x.sizes)?x.sizes:[]
     };
   }
 
