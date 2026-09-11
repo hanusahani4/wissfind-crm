@@ -1,7 +1,10 @@
 package com.wissfind.marketplace.config;
 
+import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.ProductImage;
 import com.wissfind.marketplace.repo.ProductImageRepository;
+import com.wissfind.marketplace.repo.ProductRepository;
+import com.wissfind.marketplace.service.CloudinaryImageService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,11 +20,8 @@ import java.util.regex.Pattern;
 
 /**
  * Keeps legacy product-image URLs working after the Cloudinary migration.
- *
- * The Angular seller screen can still hold URLs such as
- * /api/products/{productId}/images/{imageId}. New image rows store their
- * bytes in Cloudinary, so the legacy controller cannot serve imageData.
- * Redirect those requests to the stored Cloudinary HTTPS URL instead.
+ * This is intentionally global so customer, seller and admin screens all
+ * behave the same when an old relative image URL is still present in the UI.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
@@ -32,9 +32,15 @@ public class ProductImageRedirectFilter extends OncePerRequestFilter {
     );
 
     private final ProductImageRepository images;
+    private final ProductRepository products;
+    private final CloudinaryImageService cloudinary;
 
-    public ProductImageRedirectFilter(ProductImageRepository images) {
+    public ProductImageRedirectFilter(ProductImageRepository images,
+                                      ProductRepository products,
+                                      CloudinaryImageService cloudinary) {
         this.images = images;
+        this.products = products;
+        this.cloudinary = cloudinary;
     }
 
     @Override
@@ -58,11 +64,31 @@ public class ProductImageRedirectFilter extends OncePerRequestFilter {
             Long imageId = Long.valueOf(matcher.group(2));
             ProductImage image = images.findById(imageId).orElse(null);
 
-            if (image != null
-                    && image.product != null
-                    && productId.equals(image.product.id)
-                    && isHttpUrl(image.cloudinaryUrl)) {
-                response.sendRedirect(image.cloudinaryUrl);
+            if (image == null || image.product == null || !productId.equals(image.product.id)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // New rows normally have the URL. Migrated rows may only have the
+            // Cloudinary public id, so reconstruct the delivery URL on demand.
+            String url = image.cloudinaryUrl;
+            if (!isHttpUrl(url)) {
+                url = cloudinary.secureUrl(image.cloudinaryPublicId);
+            }
+
+            // Some existing rows may have lost the image-row URL while the
+            // Product still has its Cloudinary primary image URL. Use it as a
+            // final compatibility fallback rather than returning a 404.
+            if (!isHttpUrl(url)) {
+                Product product = products.findById(productId).orElse(null);
+                if (product != null && isHttpUrl(product.image)) {
+                    url = product.image;
+                }
+            }
+
+            if (isHttpUrl(url)) {
+                response.setStatus(HttpServletResponse.SC_FOUND);
+                response.setHeader("Location", url);
                 return;
             }
         } catch (Exception ignored) {
