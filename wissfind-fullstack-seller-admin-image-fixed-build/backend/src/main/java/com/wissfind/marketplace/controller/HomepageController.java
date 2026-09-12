@@ -1,20 +1,22 @@
 package com.wissfind.marketplace.controller;
 
-import com.wissfind.marketplace.entity.HomepageConfiguration;
+import com.wissfind.marketplace.entity.Category;
+import com.wissfind.marketplace.entity.HomepageSection;
 import com.wissfind.marketplace.entity.Product;
+import com.wissfind.marketplace.entity.ProductCartAdd;
 import com.wissfind.marketplace.entity.ProductImage;
-import com.wissfind.marketplace.repo.HomepageConfigurationRepository;
+import com.wissfind.marketplace.repo.CategoryRepository;
+import com.wissfind.marketplace.repo.HomepageSectionRepository;
+import com.wissfind.marketplace.repo.ProductCartAddRepository;
 import com.wissfind.marketplace.repo.ProductImageRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.repo.ProductViewRepository;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import jakarta.annotation.PostConstruct;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,86 +26,255 @@ public class HomepageController {
     private final ProductRepository products;
     private final ProductImageRepository images;
     private final ProductViewRepository views;
-    private final HomepageConfigurationRepository configRepo;
+    private final ProductCartAddRepository cartAdds;
+    private final HomepageSectionRepository sections;
+    private final CategoryRepository categories;
 
-    public HomepageController(ProductRepository products, ProductImageRepository images, ProductViewRepository views, HomepageConfigurationRepository configRepo) {
-        this.products = products; this.images = images; this.views = views; this.configRepo = configRepo;
+    public HomepageController(ProductRepository products,
+                              ProductImageRepository images,
+                              ProductViewRepository views,
+                              ProductCartAddRepository cartAdds,
+                              HomepageSectionRepository sections,
+                              CategoryRepository categories) {
+        this.products = products;
+        this.images = images;
+        this.views = views;
+        this.cartAdds = cartAdds;
+        this.sections = sections;
+        this.categories = categories;
+    }
+
+    @PostConstruct
+    @Transactional
+    public void seedDefaultSections() {
+        if (sections.count() > 0) return;
+        saveDefault("🔥 Trending Now", "trending-now", HomepageSection.SectionType.TRENDING, 1);
+        saveDefault("⭐ Best Sellers", "best-sellers", HomepageSection.SectionType.BEST_SELLERS, 2);
+        saveDefault("💥 Today's Deals", "todays-deals", HomepageSection.SectionType.DEALS, 3);
+        saveDefault("👗 Banarasi Sarees", "banarasi-sarees", HomepageSection.SectionType.CATEGORY, 4);
+        saveDefault("🆕 New Arrivals", "new-arrivals", HomepageSection.SectionType.NEW_ARRIVALS, 5);
+        saveDefault("❤️ Customers Love These", "customers-love-these", HomepageSection.SectionType.TOP_RATED, 6);
     }
 
     @GetMapping
     @Transactional(readOnly = true)
-    public Page<Product> homepage(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "8") int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(24, Math.max(1, size)));
-        HomepageConfiguration c = config();
-        List<Product> ranked = rank(liveProducts(), c);
-        int from = Math.min((int) pageable.getOffset(), ranked.size());
-        int to = Math.min(from + pageable.getPageSize(), ranked.size());
-        List<Product> slice = ranked.subList(from, to);
-        populateImages(slice);
-        return new PageImpl<>(slice, pageable, ranked.size());
+    public Map<String, Object> homepage() {
+        List<Product> all = liveProducts();
+        Analytics analytics = analytics(all);
+        List<Map<String, Object>> result = sections.findByActiveTrueOrderByDisplayOrderAsc().stream()
+                .filter(this::withinSchedule)
+                .map(section -> sectionResponse(section, selectProducts(section, all, analytics)))
+                .toList();
+        return Map.of("sections", result);
     }
 
-    @GetMapping("/candidates")
+    @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> candidates() { return liveProducts().stream().map(this::candidate).toList(); }
-
-    @GetMapping("/config")
-    @PreAuthorize("hasRole('ADMIN')")
-    public HomepageConfiguration getConfig() { return config(); }
-
-    @PutMapping("/config")
-    @PreAuthorize("hasRole('ADMIN')")
-    public HomepageConfiguration saveConfig(@RequestBody HomepageConfiguration input) {
-        HomepageConfiguration c = config();
-        c.mode = input.mode == null ? HomepageConfiguration.Mode.AUTOMATIC : input.mode;
-        c.manualProductIds = input.manualProductIds == null ? "" : input.manualProductIds.trim();
-        c.ordersWeight = Math.max(0, input.ordersWeight); c.ratingsWeight = Math.max(0, input.ratingsWeight); c.viewsWeight = Math.max(0, input.viewsWeight);
-        double total = c.ordersWeight + c.ratingsWeight + c.viewsWeight;
-        if (total == 0) { c.ordersWeight=.50; c.ratingsWeight=.30; c.viewsWeight=.20; }
-        else { c.ordersWeight/=total; c.ratingsWeight/=total; c.viewsWeight/=total; }
-        return configRepo.save(c);
+    public Map<String, Object> adminData() {
+        List<Product> all = liveProducts();
+        Analytics analytics = analytics(all);
+        List<Map<String, Object>> sectionRows = sections.findAllByOrderByDisplayOrderAsc().stream()
+                .map(s -> sectionAdminResponse(s, selectProducts(s, all, analytics)))
+                .toList();
+        return Map.of("sections", sectionRows, "products", all.stream().map(p -> candidate(p, analytics)).toList());
     }
 
-    private HomepageConfiguration config() { return configRepo.findById(1L).orElseGet(HomepageConfiguration::new); }
+    @PutMapping("/sections/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public HomepageSection saveSection(@PathVariable Long id, @RequestBody HomepageSection input) {
+        HomepageSection section = sections.findById(id).orElseThrow(() -> new IllegalArgumentException("Homepage section not found"));
+        section.title = safe(input.title, section.title);
+        section.slug = safe(input.slug, section.slug).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]", "-");
+        section.sectionType = input.sectionType == null ? section.sectionType : input.sectionType;
+        section.productMode = input.productMode == null ? HomepageSection.ProductMode.AUTOMATIC : input.productMode;
+        section.displayOrder = Math.max(1, input.displayOrder);
+        section.active = input.active;
+        section.maxProducts = Math.min(30, Math.max(1, input.maxProducts));
+        section.showViewAll = input.showViewAll;
+        section.categoryId = input.categoryId;
+        section.manualProductIds = normalizeIds(input.manualProductIds);
+        section.startDate = input.startDate;
+        section.endDate = input.endDate;
+        return sections.save(section);
+    }
+
+    @PutMapping("/sections/reorder")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public List<HomepageSection> reorder(@RequestBody List<Long> ids) {
+        List<HomepageSection> all = sections.findAll();
+        Map<Long, HomepageSection> byId = all.stream().collect(Collectors.toMap(x -> x.id, x -> x));
+        int order = 1;
+        for (Long id : ids == null ? List.<Long>of() : ids) {
+            HomepageSection s = byId.remove(id);
+            if (s != null) s.displayOrder = order++;
+        }
+        for (HomepageSection s : byId.values()) s.displayOrder = order++;
+        return sections.saveAll(all);
+    }
+
+    @PostMapping("/events/cart-add")
+    public void cartAdd(@RequestBody Map<String, Object> body) {
+        Object raw = body == null ? null : body.get("productId");
+        if (raw == null) return;
+        try {
+            Long id = Long.valueOf(String.valueOf(raw));
+            if (products.existsById(id)) {
+                ProductCartAdd event = new ProductCartAdd();
+                event.productId = id;
+                cartAdds.save(event);
+            }
+        } catch (NumberFormatException ignored) { }
+    }
+
+    private void saveDefault(String title, String slug, HomepageSection.SectionType type, int order) {
+        HomepageSection s = new HomepageSection();
+        s.title = title; s.slug = slug; s.sectionType = type; s.displayOrder = order;
+        s.productMode = HomepageSection.ProductMode.AUTOMATIC; s.maxProducts = 10; s.active = true; s.showViewAll = true;
+        sections.save(s);
+    }
 
     private List<Product> liveProducts() {
-        return products.findAll().stream().filter(p -> p.status == Product.Status.LIVE && p.stock > 0).collect(Collectors.toCollection(ArrayList::new));
+        return products.findAll().stream()
+                .filter(p -> p.status == Product.Status.LIVE && p.stock > 0)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private List<Product> rank(List<Product> source, HomepageConfiguration c) {
-        prepare(source);
-        Map<Long,Integer> manual = manualOrder(c.manualProductIds);
-        if (c.mode == HomepageConfiguration.Mode.MANUAL) {
-            return source.stream().sorted(Comparator.comparingInt((Product p)->manual.getOrDefault(p.id,Integer.MAX_VALUE))
-                    .thenComparing(Comparator.comparingDouble((Product p)->automaticScore(p,c)).reversed())).toList();
+    private Analytics analytics(List<Product> all) {
+        Map<Long, Long> viewCounts = grouped(views.countGroupedByProduct());
+        Map<Long, Long> cartCounts = grouped(cartAdds.countGroupedByProduct());
+        return new Analytics(viewCounts, cartCounts);
+    }
+
+    private Map<Long, Long> grouped(List<Object[]> rows) {
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 2 && row[0] != null) {
+                result.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+            }
         }
-        if (c.mode == HomepageConfiguration.Mode.HYBRID) {
-            return source.stream().sorted(Comparator.comparingDouble((Product p)->automaticScore(p,c)+manualBoost(manual.get(p.id),source.size())).reversed()).toList();
-        }
-        return source.stream().sorted(Comparator.comparingDouble((Product p)->automaticScore(p,c)).reversed()).toList();
-    }
-
-    private double automaticScore(Product p, HomepageConfiguration c) {
-        return c.ordersWeight * p.sales / Math.max(1, sourceMaxSales)
-                + c.ratingsWeight * Math.max(0, Math.min(5, p.rating)) / 5.0
-                + c.viewsWeight * views.countByProductId(p.id) / Math.max(1, sourceMaxViews);
-    }
-
-    private int sourceMaxSales=1; private long sourceMaxViews=1;
-    private void prepare(List<Product> source) {
-        sourceMaxSales=source.stream().mapToInt(p->Math.max(0,p.sales)).max().orElse(1);
-        sourceMaxViews=source.stream().mapToLong(p->views.countByProductId(p.id)).max().orElse(1);
-    }
-    private double manualBoost(Integer position,int total){return position==null?0:0.50*(1.0-((double)position/Math.max(1,total)));}
-    private Map<Long,Integer> manualOrder(String ids){
-        Map<Long,Integer> result=new HashMap<>(); if(ids==null||ids.isBlank())return result; int index=0;
-        for(String token:ids.split(",")){try{Long id=Long.valueOf(token.trim());if(!result.containsKey(id))result.put(id,index++);}catch(Exception ignored){}}
         return result;
     }
-    private Map<String,Object> candidate(Product p){
-        Map<String,Object> m=new LinkedHashMap<>(); m.put("id",p.id);m.put("name",p.name);m.put("category",p.category);m.put("price",p.price);m.put("rating",p.rating);m.put("reviews",p.reviews);m.put("sales",p.sales);m.put("views",views.countByProductId(p.id));m.put("image",imageUrl(p)); return m;
+
+    private List<Product> selectProducts(HomepageSection section, List<Product> all, Analytics analytics) {
+        List<Product> automatic = switch (section.sectionType) {
+            case TRENDING -> all.stream().sorted(Comparator.comparingDouble((Product p) -> trendingScore(p, analytics)).reversed()).toList();
+            case BEST_SELLERS -> all.stream().sorted(Comparator.comparingInt((Product p) -> p.sales).reversed()).toList();
+            case DEALS -> all.stream().filter(this::isActiveDeal)
+                    .sorted(Comparator.comparingDouble(this::discountPercent).reversed()).toList();
+            case CATEGORY -> categoryProducts(section, all);
+            case NEW_ARRIVALS -> all.stream().sorted(Comparator.comparing((Product p) -> p.createdAt).reversed()).toList();
+            case TOP_RATED -> all.stream().filter(p -> p.rating >= 4.0 && p.reviews >= 5)
+                    .sorted(Comparator.comparingDouble((Product p) -> p.rating).reversed().thenComparingInt(p -> p.reviews).reversed()).toList();
+        };
+
+        List<Long> manualIds = parseIds(section.manualProductIds);
+        Map<Long, Product> byId = all.stream().collect(Collectors.toMap(p -> p.id, p -> p, (a, b) -> a));
+        List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList();
+        int max = Math.max(1, Math.min(30, section.maxProducts));
+        if (section.productMode == HomepageSection.ProductMode.MANUAL) return manual.stream().limit(max).toList();
+        if (section.productMode == HomepageSection.ProductMode.HYBRID) {
+            Set<Long> selected = manual.stream().map(p -> p.id).collect(Collectors.toSet());
+            List<Product> merged = new ArrayList<>(manual);
+            automatic.stream().filter(p -> !selected.contains(p.id)).limit(Math.max(0, max - merged.size())).forEach(merged::add);
+            return merged.stream().limit(max).toList();
+        }
+        return automatic.stream().limit(max).toList();
     }
-    private void populateImages(List<Product> rows){for(Product p:rows){List<ProductImage> imgs=images.findByProductIdOrderByDisplayOrderAsc(p.id);List<String> urls=imgs.stream().map(x->x.cloudinaryUrl!=null&&!x.cloudinaryUrl.isBlank()?x.cloudinaryUrl:"/api/products/"+p.id+"/images/"+x.id).toList();p.images=urls;if((p.image==null||p.image.isBlank())&&!urls.isEmpty())p.image=urls.get(0);}}
-    private String imageUrl(Product p){List<ProductImage> imgs=images.findByProductIdOrderByDisplayOrderAsc(p.id);if(!imgs.isEmpty()&&imgs.get(0).cloudinaryUrl!=null&&!imgs.get(0).cloudinaryUrl.isBlank())return imgs.get(0).cloudinaryUrl;return p.image;}
+
+    private List<Product> categoryProducts(HomepageSection section, List<Product> all) {
+        if (section.categoryId == null) return List.of();
+        Optional<Category> category = categories.findById(section.categoryId);
+        if (category.isEmpty()) return List.of();
+        String name = category.get().name == null ? "" : category.get().name.trim();
+        String slug = category.get().slug == null ? "" : category.get().slug.trim();
+        return all.stream().filter(p -> equalsIgnoreCase(p.category, name) || equalsIgnoreCase(p.category, slug))
+                .sorted(Comparator.comparing((Product p) -> p.createdAt).reversed()).toList();
+    }
+
+    private double trendingScore(Product p, Analytics a) {
+        return a.views.getOrDefault(p.id, 0L) * 1.0
+                + Math.max(0, p.likes) * 3.0
+                + a.cartAdds.getOrDefault(p.id, 0L) * 5.0
+                + Math.max(0, p.sales) * 10.0;
+    }
+
+    private boolean isActiveDeal(Product p) {
+        Instant now = Instant.now();
+        return p.salePrice != null && p.salePrice > 0
+                && p.dealStart != null && p.dealEnd != null
+                && !p.dealStart.isAfter(now) && !p.dealEnd.isBefore(now);
+    }
+
+    private double discountPercent(Product p) {
+        if (p.discountPercent != null) return Math.max(0, p.discountPercent);
+        if (p.oldPrice > 0 && p.price > 0 && p.oldPrice > p.price) return (p.oldPrice - p.price) * 100.0 / p.oldPrice;
+        return 0;
+    }
+
+    private Map<String, Object> sectionResponse(HomepageSection s, List<Product> selected) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", s.id); row.put("title", s.title); row.put("type", s.sectionType); row.put("slug", s.slug);
+        row.put("showViewAll", s.showViewAll);
+        row.put("products", selected);
+        return row;
+    }
+
+    private Map<String, Object> sectionAdminResponse(HomepageSection s, List<Product> selected) {
+        Map<String, Object> row = new LinkedHashMap<>(sectionResponse(s, selected));
+        row.put("productMode", s.productMode); row.put("displayOrder", s.displayOrder); row.put("active", s.active);
+        row.put("maxProducts", s.maxProducts); row.put("categoryId", s.categoryId); row.put("manualProductIds", parseIds(s.manualProductIds));
+        row.put("startDate", s.startDate); row.put("endDate", s.endDate);
+        return row;
+    }
+
+    private Map<String, Object> candidate(Product p, Analytics a) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", p.id); row.put("name", p.name); row.put("category", p.category); row.put("price", p.price);
+        row.put("salePrice", p.salePrice); row.put("rating", p.rating); row.put("reviews", p.reviews); row.put("sales", p.sales);
+        row.put("likes", p.likes); row.put("views", a.views.getOrDefault(p.id, 0L)); row.put("cartAdds", a.cartAdds.getOrDefault(p.id, 0L));
+        row.put("image", imageUrl(p));
+        return row;
+    }
+
+    private void populateImages(List<Product> rows) {
+        for (Product p : rows) {
+            List<ProductImage> imgs = images.findByProductIdOrderByDisplayOrderAsc(p.id);
+            List<String> urls = imgs.stream().map(x -> x.cloudinaryUrl != null && !x.cloudinaryUrl.isBlank()
+                    ? x.cloudinaryUrl : "/api/products/" + p.id + "/images/" + x.id).toList();
+            p.images = urls;
+            if ((p.image == null || p.image.isBlank()) && !urls.isEmpty()) p.image = urls.get(0);
+        }
+    }
+
+    private String imageUrl(Product p) {
+        List<ProductImage> imgs = images.findByProductIdOrderByDisplayOrderAsc(p.id);
+        if (!imgs.isEmpty() && imgs.get(0).cloudinaryUrl != null && !imgs.get(0).cloudinaryUrl.isBlank()) return imgs.get(0).cloudinaryUrl;
+        return p.image;
+    }
+
+    private boolean withinSchedule(HomepageSection s) {
+        Instant now = Instant.now();
+        return (s.startDate == null || !now.isBefore(s.startDate)) && (s.endDate == null || !now.isAfter(s.endDate));
+    }
+
+    private String normalizeIds(String value) {
+        return parseIds(value).stream().map(String::valueOf).collect(Collectors.joining(","));
+    }
+
+    private List<Long> parseIds(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        List<Long> ids = new ArrayList<>();
+        for (String token : value.split(",")) {
+            try { Long id = Long.valueOf(token.trim()); if (!ids.contains(id)) ids.add(id); } catch (NumberFormatException ignored) { }
+        }
+        return ids;
+    }
+
+    private String safe(String value, String fallback) { return value == null || value.isBlank() ? fallback : value.trim(); }
+    private boolean equalsIgnoreCase(String a, String b) { return a != null && b != null && a.trim().equalsIgnoreCase(b.trim()); }
+
+    private record Analytics(Map<Long, Long> views, Map<Long, Long> cartAdds) { }
 }
