@@ -1,0 +1,58 @@
+name: Update product sharing
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-share:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update product share behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/product-detail.component.ts')
+          text = path.read_text(encoding='utf-8')
+
+          old_template = '''              <a [href]="whatsappUrl" target="_blank" rel="noopener">WhatsApp</a>\n              <button *ngIf="canNativeShare" (click)="nativeShare()">Share image + link</button>'''
+          new_template = '''              <button type="button" (click)="shareProduct()">WhatsApp · Image + Link</button>\n              <button *ngIf="canNativeShare" type="button" (click)="nativeShare()">Share image + link</button>'''
+
+          if old_template not in text:
+              raise SystemExit('Expected WhatsApp share template was not found')
+          text = text.replace(old_template, new_template, 1)
+
+          marker = '''  async nativeShare() {\n'''
+          method = '''  async shareProduct() {\n    if (!this.product) return;\n\n    // On supported phones, the native share sheet can send the actual\n    // product image together with the product URL. The user can choose WhatsApp.\n    if (navigator.share) {\n      await this.nativeShare();\n      return;\n    }\n\n    // Desktop fallback: open WhatsApp with the product name, page URL and\n    // public product image URL so WhatsApp can create a preview when supported.\n    const text = `${this.product.name}\\n${this.pageUrl}\\n${this.selectedImage}`;\n    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');\n  }\n\n'''
+
+          if marker not in text:
+              raise SystemExit('nativeShare method marker was not found')
+          if 'async shareProduct()' not in text:
+              text = text.replace(marker, method + marker, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/product-detail.component.ts
+          git commit -m "feat: share product image and link via WhatsApp" || exit 0
+          git push
+
+      - name: Remove temporary workflow
+        if: always()
+        run: |
+          git rm -f .github/workflows/update-product-share.yml || true
+          git commit -m "chore: remove temporary product share workflow" || true
+          git push || true
