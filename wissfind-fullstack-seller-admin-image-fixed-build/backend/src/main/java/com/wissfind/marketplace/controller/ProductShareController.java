@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
 
 /**
  * Serves the Angular shell for product URLs with product-specific Open Graph
@@ -62,7 +63,7 @@ public class ProductShareController {
                 imageUrl.isBlank() ? "" : "<meta name=\"twitter:image\" content=\"" + esc(imageUrl) + "\">"
         );
 
-        String result = html.replaceFirst("(?i)</head>", meta + "</head>");
+        String result = html.replaceFirst("(?i)</head>", Matcher.quoteReplacement(meta + "</head>"));
         return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(result);
     }
 
