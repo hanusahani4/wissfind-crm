@@ -4,8 +4,6 @@ import { razorpayCheckoutGuard } from './core/razorpay-checkout.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent) },
-  // Product detail must be a normal route. Purchase/share behavior should never
-  // be implemented as a route guard because guards run again on browser refresh.
   { path: 'product/:id', loadComponent: () => import('./pages/product-detail.component').then(m => m.ProductDetailComponent) },
   { path: 'login', loadComponent: () => import('./pages/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then(m => m.SignupComponent) },
@@ -18,6 +16,7 @@ export const routes: Routes = [
   { path: 'price-alerts', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/price-alerts.component').then(m => m.PriceAlertsComponent) },
   { path: 'returns', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/returns.component').then(m => m.ReturnsComponent) },
   { path: 'admin', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/admin.component').then(m => m.AdminComponent) },
+  { path: 'admin/homepage', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/homepage-management.component').then(m => m.HomepageManagementComponent) },
   { path: 'seller/register', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/seller-register.component').then(m => m.SellerRegisterComponent) },
   { path: 'seller', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller.component').then(m => m.SellerComponent) },
   { path: '**', redirectTo: '' }
