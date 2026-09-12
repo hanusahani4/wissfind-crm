@@ -1,5 +1,5 @@
 import { CommonModule, DecimalPipe } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { BackendApiService } from '../core/backend-api.service';
 import { CartService } from '../core/cart.service';
@@ -41,20 +41,27 @@ import { ReviewService } from '../core/review.service';
   `,
   styles: [`
     :host{display:block;width:100%;box-sizing:border-box}.homepage-sections{display:grid;gap:42px;margin:0 0 56px}.section{min-width:0}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:16px}.eyebrow{font-size:10px;letter-spacing:.13em;color:#888;font-weight:900}.section h2{font-size:26px;margin:5px 0 0}.view-all{font-size:12px;font-weight:800;color:#555;white-space:nowrap}.product-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;overflow:hidden}.card{min-width:0}.image{position:relative;display:block;aspect-ratio:4/5;background:#eee;border-radius:15px;overflow:hidden}.image img{width:100%;height:100%;object-fit:cover;transition:transform .3s}.card:hover .image img{transform:scale(1.035)}.badge{position:absolute;left:9px;top:9px;background:#fff;border-radius:999px;padding:5px 7px;font-size:9px;font-weight:900}.info{padding:9px 2px}.meta{display:flex;justify-content:space-between;color:#777;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.info h3{font-size:14px;margin:7px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.social{display:flex;justify-content:space-between;align-items:center;font-size:10px;margin:6px 0}.social button{border:0;background:none;padding:0;color:#777;cursor:pointer}.social button.liked{color:#e5394f}.social a{color:#777;font-weight:700}.bottom{display:flex;align-items:center;justify-content:space-between;gap:7px}.bottom b{font-size:14px}.bottom del{display:block;color:#aaa;font-size:10px}.cart{border:0;background:#111;color:#fff;border-radius:999px;padding:7px 9px;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer}.cart:disabled{opacity:.4}@media(max-width:1100px){.product-row{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:800px){.product-row{grid-template-columns:repeat(3,minmax(0,1fr));overflow:auto}.section h2{font-size:22px}}@media(max-width:560px){.product-row{grid-template-columns:repeat(2,minmax(0,1fr))}.section-head{align-items:flex-start}.info h3{font-size:13px}}
+    .catalog-empty-state{grid-column:1/-1;display:grid;place-items:center;text-align:center;min-height:260px;padding:36px 20px;border:1px dashed var(--line);border-radius:18px;background:#fff;margin-top:8px}.catalog-empty-state h3{margin:0 0 8px;font-size:22px}.catalog-empty-state p{margin:0 0 18px;color:#777;line-height:1.6;font-size:14px}.catalog-empty-state a{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#111;color:#fff;padding:11px 18px;font-size:12px;font-weight:800;text-decoration:none}
   `]
 })
-export class HomepageSectionsComponent implements AfterViewInit {
+export class HomepageSectionsComponent implements AfterViewInit, OnDestroy {
   private api = inject(BackendApiService);
   private cart = inject(CartService);
   private router = inject(Router);
   private host = inject(ElementRef<HTMLElement>);
   readonly reviews = inject(ReviewService);
   sections:any[]=[];
+  private shopObserver?: MutationObserver;
 
   constructor(){void this.load();}
 
   ngAfterViewInit(){
     this.moveInsideCustomerHome();
+    this.watchShopCatalog();
+  }
+
+  ngOnDestroy(){
+    this.shopObserver?.disconnect();
   }
 
   private moveInsideCustomerHome(attempt=0){
@@ -66,6 +73,30 @@ export class HomepageSectionsComponent implements AfterViewInit {
       return;
     }
     if(!parent && attempt<20)setTimeout(()=>this.moveInsideCustomerHome(attempt+1),100);
+  }
+
+  private watchShopCatalog(attempt=0){
+    const grid=document.querySelector<HTMLElement>('#shop ~ .grid');
+    if(grid){
+      this.syncEmptyState(grid);
+      this.shopObserver=new MutationObserver(()=>this.syncEmptyState(grid));
+      this.shopObserver.observe(grid,{childList:true});
+      return;
+    }
+    if(attempt<20)setTimeout(()=>this.watchShopCatalog(attempt+1),100);
+  }
+
+  private syncEmptyState(grid: HTMLElement){
+    const existing=grid.querySelector<HTMLElement>('.catalog-empty-state');
+    const hasProducts=Array.from(grid.children).some(child=>!child.classList.contains('catalog-empty-state'));
+    if(!hasProducts && !existing){
+      const empty=document.createElement('div');
+      empty.className='catalog-empty-state';
+      empty.innerHTML='<h3>Nothing here yet! 🛍️</h3><p>We’re adding exciting new products to this collection soon.</p><a href="#shop">Explore All Products →</a>';
+      grid.appendChild(empty);
+    }else if(hasProducts && existing){
+      existing.remove();
+    }
   }
 
   async load(){
