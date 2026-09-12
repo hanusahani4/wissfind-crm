@@ -104,8 +104,8 @@ import { ProductReview, ReviewService } from '../core/review.service';
             <div class="share-row">
               <a [href]="facebookUrl" target="_blank" rel="noopener">Facebook</a>
               <a [href]="xUrl" target="_blank" rel="noopener">X</a>
-              <a [href]="whatsappUrl" target="_blank" rel="noopener">WhatsApp</a>
-              <button *ngIf="canNativeShare" (click)="nativeShare()">Share image + link</button>
+              <button type="button" (click)="shareProduct()">WhatsApp · Image + Link</button>
+              <button *ngIf="canNativeShare" type="button" (click)="nativeShare()">Share image + link</button>
             </div>
             <small>Social links share the product page URL. Native share can include the selected product image.</small>
           </div>
@@ -997,6 +997,22 @@ await this.reviews.addReview({
 
     this.cart.add(this.product);
     await this.router.navigateByUrl('/cart');
+  }
+
+  async shareProduct() {
+    if (!this.product) return;
+
+    // On supported phones, the native share sheet can send the actual
+    // product image together with the product URL. The user can choose WhatsApp.
+    if (navigator.share) {
+      await this.nativeShare();
+      return;
+    }
+
+    // Desktop fallback: open WhatsApp with the product name, page URL and
+    // public product image URL so WhatsApp can create a preview when supported.
+    const text = `${this.product.name}\n${this.pageUrl}\n${this.selectedImage}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   }
 
   async nativeShare() {
