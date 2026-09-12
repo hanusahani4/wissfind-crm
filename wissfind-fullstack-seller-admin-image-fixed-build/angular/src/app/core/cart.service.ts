@@ -31,6 +31,8 @@ export class CartService {
   constructor(private api: BackendApiService) {
     void this.loadShippingConfig();
     effect(() => {
+      // COD must never remain selected while the current payable amount is above
+      // the admin-configured COD limit (or COD has been disabled).
       if (!this.codAllowed() && this.paymentMethod() === 'COD') {
         this.paymentMethod.set('RAZORPAY');
       }
@@ -48,6 +50,8 @@ export class CartService {
   readonly paymentMethod = signal<'COD' | 'RAZORPAY'>('COD');
 
   setPaymentMethod(method: 'COD' | 'RAZORPAY') {
+    // Never allow a high-value/disabled-COD order to switch back to COD,
+    // even if the customer clicks the radio button before the UI refreshes.
     if (method === 'COD' && !this.codAllowed()) {
       this.paymentMethod.set('RAZORPAY');
       return;
@@ -64,7 +68,15 @@ export class CartService {
   readonly payableProducts = computed(() => Math.max(0, this.subtotal() - this.couponDiscount()));
   readonly codAllowed = computed(() => {
     const config = this.shippingConfig();
-    return config.codEnabled && this.payableProducts() <= Math.max(0, Number(config.codMaxOrderAmount) || 0);
+    const maxCod = Math.max(0, Number(config.codMaxOrderAmount) || 0);
+    return config.codEnabled && this.payableProducts() <= maxCod;
+  });
+  readonly codUnavailableReason = computed(() => {
+    const config = this.shippingConfig();
+    if (!config.codEnabled) return 'Cash on Delivery is currently unavailable.';
+    const maxCod = Math.max(0, Number(config.codMaxOrderAmount) || 0);
+    if (this.payableProducts() > maxCod) return `COD is unavailable above ₹${maxCod.toLocaleString('en-IN')}. Please choose prepaid payment.`;
+    return '';
   });
   readonly shippingCost = computed(() => this.shippingFor(this.paymentMethod()));
   readonly platformFee = computed(() => 0);
@@ -137,6 +149,8 @@ export class CartService {
       // Keep safe defaults so checkout remains usable if the config endpoint is unavailable.
     } finally {
       this.shippingConfigLoaded.set(true);
+      // Re-evaluate after the server config arrives so a stale COD selection
+      // can never survive a newly loaded max-order restriction.
       if (!this.codAllowed()) this.paymentMethod.set('RAZORPAY');
     }
   }
