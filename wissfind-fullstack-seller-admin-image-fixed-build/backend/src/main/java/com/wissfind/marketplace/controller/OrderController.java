@@ -4,10 +4,12 @@ import com.wissfind.marketplace.entity.Order;
 import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.OrderItem;
 import com.wissfind.marketplace.entity.User;
+import com.wissfind.marketplace.entity.ShippingSettings;
 import com.wissfind.marketplace.repo.OrderRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.repo.CustomerAddressRepository;
+import com.wissfind.marketplace.repo.ShippingSettingsRepository;
 import com.wissfind.marketplace.entity.CustomerAddress;
 import com.wissfind.marketplace.service.CurrentUser;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,13 +28,15 @@ public class OrderController {
     private final ProductRepository products;
     private final com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests;
     private final CustomerAddressRepository addresses;
+    private final ShippingSettingsRepository shippingSettingsRepo;
 
-    public OrderController(OrderRepository repo, UserRepository users, ProductRepository products, com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests, CustomerAddressRepository addresses) {
+    public OrderController(OrderRepository repo, UserRepository users, ProductRepository products, com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests, CustomerAddressRepository addresses, ShippingSettingsRepository shippingSettingsRepo) {
         this.repo = repo;
         this.users = users;
         this.products = products;
         this.returnRequests = returnRequests;
         this.addresses = addresses;
+        this.shippingSettingsRepo = shippingSettingsRepo;
     }
 
     @GetMapping("/mine")
@@ -95,11 +99,6 @@ public class OrderController {
         return repo.findAllByOrderByCreatedAtDesc();
     }
 
-    /**
-     * Creates an order for the seller that actually owns the products in the cart.
-     * The old implementation silently selected the first SELLER in the database,
-     * which caused orders to appear under a different seller account.
-     */
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     @Transactional
@@ -240,8 +239,6 @@ public class OrderController {
             item.variant = stringValue(requestedItem.get("variant"));
             order.items.add(item);
 
-            // Reserve/decrement inventory as part of the same transaction as the
-            // order. If any later validation fails, the transaction rolls back both.
             product.stock -= quantity;
             product.sales += quantity;
             if (product.stock == 0) {
@@ -258,9 +255,28 @@ public class OrderController {
                 ? serverSubtotal.multiply(new BigDecimal("0.10")).setScale(0, java.math.RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
         BigDecimal payableProducts = serverSubtotal.subtract(couponDiscount).max(BigDecimal.ZERO);
-        BigDecimal serverShipping = payableProducts.compareTo(new BigDecimal("200")) >= 0
+
+        ShippingSettings shippingSettings = shippingSettingsRepo.findAll().stream()
+                .findFirst()
+                .orElseGet(() -> shippingSettingsRepo.save(new ShippingSettings()));
+
+        if ("COD".equals(order.paymentMethod)) {
+            if (!shippingSettings.codEnabled) {
+                throw new IllegalArgumentException("Cash on delivery is currently unavailable. Please choose prepaid payment.");
+            }
+            if (payableProducts.compareTo(shippingSettings.codMaxOrderAmount) > 0) {
+                throw new IllegalArgumentException(
+                        "COD is available only up to ₹" + shippingSettings.codMaxOrderAmount.stripTrailingZeros().toPlainString()
+                                + ". Please choose prepaid payment for this order."
+                );
+            }
+        }
+
+        BigDecimal serverShipping = payableProducts.compareTo(shippingSettings.freeShippingThreshold) >= 0
                 ? BigDecimal.ZERO
-                : ("COD".equals(order.paymentMethod) ? new BigDecimal("70") : new BigDecimal("20"));
+                : ("COD".equals(order.paymentMethod)
+                    ? shippingSettings.codShippingCharge
+                    : shippingSettings.prepaidShippingCharge);
         boolean giftWrap = Boolean.TRUE.equals(body.get("giftWrap"));
         BigDecimal giftWrapFee = giftWrap ? new BigDecimal("49") : BigDecimal.ZERO;
         order.subtotal = serverSubtotal;
@@ -318,7 +334,6 @@ public class OrderController {
             order.paymentStatus = "CANCELLED";
         }
 
-        // Return the reserved quantity when a Processing order is cancelled.
         restoreStock(order);
 
         Order saved = repo.save(order);
@@ -368,7 +383,6 @@ public class OrderController {
             order.paymentStatus = "CANCELLED";
         }
 
-        // Return the reserved quantity when the seller rejects a Processing order.
         restoreStock(order);
 
         Order saved = repo.save(order);
