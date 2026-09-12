@@ -17,6 +17,7 @@ export const routes: Routes = [
   { path: 'returns', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/returns.component').then(m => m.ReturnsComponent) },
   { path: 'admin', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/admin.component').then(m => m.AdminComponent) },
   { path: 'admin/homepage', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/homepage-management.component').then(m => m.HomepageManagementComponent) },
+  { path: 'admin/shipping', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/shipping-management.component').then(m => m.ShippingManagementComponent) },
   { path: 'seller/register', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/seller-register.component').then(m => m.SellerRegisterComponent) },
   { path: 'seller', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller.component').then(m => m.SellerComponent) },
   { path: '**', redirectTo: '' }
