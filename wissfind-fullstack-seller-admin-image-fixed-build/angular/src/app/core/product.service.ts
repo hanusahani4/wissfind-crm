@@ -6,16 +6,20 @@ import { Product } from './product.model';
 export class ProductService {
   readonly products: Product[] = [];
   readonly productsVersion = signal(0);
-  private loaded = false;
-  private loading = false;
+  readonly loading = signal(false);
+  readonly loaded = signal(false);
+  private loadedInternal = false;
+  private loadingInternal = false;
   private readonly cachePrefix = 'wissfind-product-cache:';
   private readonly cacheTtlMs = 10 * 60 * 1000;
 
   constructor(private api: BackendApiService) {}
 
   async load(signal?: AbortSignal): Promise<void> {
-    if (this.loaded || this.loading) return;
-    this.loading = true;
+    if (this.loadedInternal || this.loadingInternal) return;
+    this.loadingInternal = true;
+    this.loading.set(true);
+    this.loaded.set(false);
     try {
       const pageSize = 8;
       const first:any = await this.api.get(`/products/paged?page=0&size=${pageSize}`, signal);
@@ -25,10 +29,10 @@ export class ProductService {
       firstItems.forEach((p: Product) => this.saveCachedProduct(p));
       const totalPages = Math.max(1, Number(first?.totalPages || 1));
       if (totalPages > 1 && !signal?.aborted) setTimeout(() => { void this.prefetchRemaining(totalPages, pageSize, signal); }, 250);
-      else { this.loaded = true; this.loading = false; }
+      else { this.loadedInternal = true; this.loadingInternal = false; this.loading.set(false); this.loaded.set(true); }
     } catch {
-      if (signal?.aborted) { this.loading = false; return; }
-      this.products.splice(0, this.products.length); this.productsVersion.update(v => v + 1); this.loading = false;
+      if (signal?.aborted) { this.loadingInternal = false; this.loading.set(false); return; }
+      this.products.splice(0, this.products.length); this.productsVersion.update(v => v + 1); this.loadingInternal = false; this.loading.set(false); this.loadedInternal = true; this.loaded.set(true);
     }
   }
 
@@ -43,7 +47,12 @@ export class ProductService {
         for(const result of results) if(Array.isArray((result as any)?.content)) nextProducts.push(...(result as any).content.map((x:any)=>this.map(x)));
         if(nextProducts.length){this.products.push(...nextProducts);this.productsVersion.update(v=>v+1);nextProducts.forEach(p=>this.saveCachedProduct(p));}
       }
-    }catch{ } finally{this.loaded=!signal?.aborted;this.loading=false;}
+    }catch{ } finally{
+      this.loadedInternal=!signal?.aborted;
+      this.loadingInternal=false;
+      this.loading.set(false);
+      this.loaded.set(!signal?.aborted);
+    }
   }
 
   async loadPage(page:number,size=8,search='',signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}> {
@@ -58,14 +67,14 @@ export class ProductService {
     }catch{return {items:[],total:0,totalPages:1};}
   }
 
-  async reload():Promise<void>{this.loaded=false;this.loading=false;await this.load();}
+  async reload():Promise<void>{this.loadedInternal=false;this.loadingInternal=false;this.loaded.set(false);this.loading.set(false);await this.load();}
   async getByIdAsync(id:string,signal?:AbortSignal):Promise<Product|undefined>{
     try{const data:any=await this.api.get(`/products/${encodeURIComponent(id)}`,signal);const mapped=this.map(data);this.saveCachedProduct(mapped);const existing=this.products.find(x=>String(x.id)===String(id));if(existing){Object.assign(existing,mapped);this.productsVersion.update(v=>v+1);return existing;}this.products.push(mapped);this.productsVersion.update(v=>v+1);return mapped;}
     catch{if(!signal?.aborted){try{await this.load(signal);}catch{}}return this.products.find(p=>String(p.id)===String(id));}
   }
   getById(id:string):Product|undefined{
     const existing=this.products.find(p=>String(p.id)===String(id));if(existing)return existing;
-    if(id){const cached=this.readCachedProduct(id);if(cached){this.products.push(cached);return cached;}const placeholder:Product={id:String(id),name:'',category:'Home & Living',subcategory:'',type:'',brand:'',gender:'',material:'',warranty:'',returnDays:7,weight:undefined,dimensions:'',hsnCode:'',taxIncluded:true,featured:false,gstPercent:0,shippingFee:0,platformFee:0,stock:0,price:0,oldPrice:undefined,rating:0,reviews:0,image:'',images:[],description:'',tags:[],colors:[],sizes:[]};this.products.push(placeholder);return placeholder;}return undefined;
+    if(id){const cached=this.readCachedProduct(id);if(cached){this.products.push(cached);return cached;}const placeholder:Product={id:String(id),name:'',category:'Home & Living',subcategory:'',type:'',brand:'',gender:'',material:'',warranty:'',returnDays:7,weight:undefined,dimensions:'',hsnCode:'',taxIncluded:true,featured:false,gstPercent:0,shippingFee:0,platformFee:0,handlingFee:0,convenienceFee:0,stock:0,price:0,oldPrice:undefined,rating:0,reviews:0,image:'',images:[],description:'',tags:[],colors:[],sizes:[]};this.products.push(placeholder);return placeholder;}return undefined;
   }
   private saveCachedProduct(product:Product){if(typeof localStorage==='undefined'||!product?.id)return;try{localStorage.setItem(this.cachePrefix+String(product.id),JSON.stringify({savedAt:Date.now(),product}));}catch{}}
   private readCachedProduct(id:string):Product|undefined{if(typeof localStorage==='undefined')return undefined;try{const raw=localStorage.getItem(this.cachePrefix+String(id));if(!raw)return undefined;const parsed=JSON.parse(raw);if(!parsed?.product||Date.now()-Number(parsed.savedAt||0)>this.cacheTtlMs){localStorage.removeItem(this.cachePrefix+String(id));return undefined;}return this.map(parsed.product);}catch{return undefined;}}
