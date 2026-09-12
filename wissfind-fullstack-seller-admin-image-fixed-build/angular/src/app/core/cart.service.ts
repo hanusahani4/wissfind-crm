@@ -3,6 +3,13 @@ import { BackendApiService } from './backend-api.service';
 import { Product } from './product.model';
 
 export interface CartItem { product: Product; quantity: number; }
+export interface ShippingConfig {
+  freeShippingThreshold: number;
+  prepaidShippingCharge: number;
+  codShippingCharge: number;
+  codMaxOrderAmount: number;
+  codEnabled: boolean;
+}
 export interface CartCharges {
   subtotal: number; productDiscount: number; couponDiscount: number; shippingCost: number; gst: number;
   platformFee: number; handlingFee: number; convenienceFee: number; giftWrapFee: number; totalSavings: number; total: number;
@@ -12,7 +19,18 @@ export interface CartCharges {
 export class CartService {
   private readonly items = signal<CartItem[]>(this.load());
   readonly cart = this.items.asReadonly();
-  constructor(private api: BackendApiService) {}
+  readonly shippingConfig = signal<ShippingConfig>({
+    freeShippingThreshold: 200,
+    prepaidShippingCharge: 20,
+    codShippingCharge: 70,
+    codMaxOrderAmount: 2000,
+    codEnabled: true
+  });
+  readonly shippingConfigLoaded = signal(false);
+
+  constructor(private api: BackendApiService) {
+    void this.loadShippingConfig();
+  }
 
   readonly count = computed(() => this.items().reduce((sum, item) => sum + Math.max(0, item.quantity), 0));
   readonly subtotal = computed(() => this.items().reduce((sum, item) => {
@@ -24,13 +42,25 @@ export class CartService {
   readonly giftWrap = signal<boolean>(false);
   readonly paymentMethod = signal<'COD' | 'RAZORPAY'>('COD');
 
-  setPaymentMethod(method: 'COD' | 'RAZORPAY') { this.paymentMethod.set(method === 'RAZORPAY' ? 'RAZORPAY' : 'COD'); }
+  setPaymentMethod(method: 'COD' | 'RAZORPAY') {
+    if (method === 'COD' && !this.codAllowed()) {
+      this.paymentMethod.set('RAZORPAY');
+      return;
+    }
+    this.paymentMethod.set(method === 'RAZORPAY' ? 'RAZORPAY' : 'COD');
+  }
+
   readonly productDiscount = computed(() => Math.round(this.items().reduce((sum, item) => {
     const price = Math.max(0, Number(item.product.price) || 0);
     const oldPrice = Math.max(price, Number(item.product.oldPrice) || price);
     return sum + Math.max(0, oldPrice - price) * Math.max(0, item.quantity);
   }, 0)));
   readonly couponDiscount = computed(() => this.couponCode().trim().toUpperCase() === 'WISS10' ? Math.round(this.subtotal() * 0.10) : 0);
+  readonly payableProducts = computed(() => Math.max(0, this.subtotal() - this.couponDiscount()));
+  readonly codAllowed = computed(() => {
+    const config = this.shippingConfig();
+    return config.codEnabled && this.payableProducts() <= Math.max(0, Number(config.codMaxOrderAmount) || 0);
+  });
   readonly shippingCost = computed(() => this.shippingFor(this.paymentMethod()));
   readonly platformFee = computed(() => 0);
   readonly handlingFee = computed(() => 0);
@@ -45,13 +75,18 @@ export class CartService {
   readonly razorpaySavings = computed(() => Math.max(0, this.codTotal() - this.razorpayTotal()));
 
   shippingFor(method: 'COD' | 'RAZORPAY') {
-    const payableProducts = Math.max(0, this.subtotal() - this.couponDiscount());
-    if (payableProducts <= 0 || payableProducts >= 200) return 0;
-    return method === 'COD' ? 70 : 20;
+    const payableProducts = this.payableProducts();
+    const config = this.shippingConfig();
+    if (payableProducts <= 0 || payableProducts >= Math.max(0, Number(config.freeShippingThreshold) || 0)) return 0;
+    return method === 'COD'
+      ? Math.max(0, Number(config.codShippingCharge) || 0)
+      : Math.max(0, Number(config.prepaidShippingCharge) || 0);
   }
+
   totalFor(method: 'COD' | 'RAZORPAY') {
-    return Math.max(0, Math.round(this.subtotal() - this.couponDiscount() + this.shippingFor(method) + this.giftWrapFee()));
+    return Math.max(0, Math.round(this.payableProducts() + this.shippingFor(method) + this.giftWrapFee()));
   }
+
   readonly summary = computed<CartCharges>(() => ({
     subtotal: this.subtotal(), productDiscount: this.productDiscount(), couponDiscount: this.couponDiscount(), shippingCost: this.shippingCost(),
     gst: this.gst(), platformFee: this.platformFee(), handlingFee: this.handlingFee(), convenienceFee: this.convenienceFee(),
@@ -80,6 +115,27 @@ export class CartService {
   removeCoupon() { this.couponCode.set(''); }
   setGiftWrap(enabled: boolean) { this.giftWrap.set(!!enabled); }
   clear() { this.items.set([]); this.couponCode.set(''); this.giftWrap.set(false); this.persist(); }
+
+  private async loadShippingConfig() {
+    try {
+      const value: any = await this.api.get('/shipping-config');
+      if (value) {
+        this.shippingConfig.set({
+          freeShippingThreshold: Math.max(0, Number(value.freeShippingThreshold) || 0),
+          prepaidShippingCharge: Math.max(0, Number(value.prepaidShippingCharge) || 0),
+          codShippingCharge: Math.max(0, Number(value.codShippingCharge) || 0),
+          codMaxOrderAmount: Math.max(0, Number(value.codMaxOrderAmount) || 0),
+          codEnabled: value.codEnabled !== false
+        });
+      }
+    } catch {
+      // Keep safe defaults so checkout remains usable if the config endpoint is unavailable.
+    } finally {
+      this.shippingConfigLoaded.set(true);
+      if (!this.codAllowed()) this.paymentMethod.set('RAZORPAY');
+    }
+  }
+
   private persist() { try { localStorage.setItem('wissfind-cart', JSON.stringify(this.items())); } catch { } }
   private load(): CartItem[] {
     try {
