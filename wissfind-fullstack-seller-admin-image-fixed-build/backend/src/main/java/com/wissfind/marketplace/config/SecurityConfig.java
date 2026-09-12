@@ -32,6 +32,7 @@ public class SecurityConfig {
                 }))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
+                        // Public API endpoints used by the storefront.
                         .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/razorpay/webhook").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
@@ -39,6 +40,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/homepage").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shipping-config").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/homepage/events/cart-add").permitAll()
+                        // Angular SPA/static resources are served directly by Spring Boot.
+                        .requestMatchers("/", "/index.html", "/favicon.ico", "/assets/**", "/*.js", "/*.css", "/*.map", "/*.json", "/*.png", "/*.jpg", "/*.jpeg", "/*.gif", "/*.svg", "/*.webp", "/*.ico", "/*.woff", "/*.woff2", "/*.ttf").permitAll()
+                        // Keep all remaining API and actuator endpoints protected.
+                        .requestMatchers("/api/**", "/actuator/**").authenticated()
+                        // Allow Angular client-side routes to load index.html; authorization is handled by the application/API.
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
                 .build();
