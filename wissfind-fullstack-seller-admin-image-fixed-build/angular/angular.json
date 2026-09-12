@@ -13,7 +13,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "dist/fashion-electronics-store",
+            "outputPath": "../backend/src/main/resources/static",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [],
@@ -23,12 +23,36 @@
             "scripts": []
           },
           "configurations": {
-            "production": {"budgets":[{"type":"initial","maximumWarning":"2mb","maximumError":"5mb"}],"outputHashing":"all"},
-            "development": {"optimization":false,"extractLicenses":false,"sourceMap":true}
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "2mb",
+                  "maximumError": "5mb"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
           },
-          "defaultConfiguration":"production"
+          "defaultConfiguration": "production"
         },
-        "serve": {"builder":"@angular/build:dev-server","configurations":{"production":{"buildTarget":"fashion-electronics-store:build:production"},"development":{"buildTarget":"fashion-electronics-store:build:development"}},"defaultConfiguration":"development"}
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "fashion-electronics-store:build:production"
+            },
+            "development": {
+              "buildTarget": "fashion-electronics-store:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        }
       }
     }
   }
