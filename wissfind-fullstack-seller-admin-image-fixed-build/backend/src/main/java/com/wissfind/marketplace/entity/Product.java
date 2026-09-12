@@ -2,6 +2,7 @@ package com.wissfind.marketplace.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -85,6 +86,12 @@ public class Product extends BaseEntity {
     public double rating = 0;
     public int reviews = 0;
     public int likes = 0;
+
+    // Homepage deal window. When salePrice is set, it is used only while the window is active.
+    public Double salePrice;
+    public Double discountPercent;
+    public Instant dealStart;
+    public Instant dealEnd;
 
     @Enumerated(EnumType.STRING)
     public Status status = Status.PENDING;
