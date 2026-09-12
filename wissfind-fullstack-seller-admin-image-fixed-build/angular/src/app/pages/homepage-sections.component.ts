@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { BackendApiService } from '../core/backend-api.service';
 import { CartService } from '../core/cart.service';
 import { ReviewService } from '../core/review.service';
+import { ProductService } from '../core/product.service';
 
 @Component({
   selector: 'app-homepage-sections',
@@ -49,6 +50,7 @@ export class HomepageSectionsComponent implements AfterViewInit, OnDestroy {
   private cart = inject(CartService);
   private router = inject(Router);
   private host = inject(ElementRef<HTMLElement>);
+  private productService = inject(ProductService);
   readonly reviews = inject(ReviewService);
   sections:any[]=[];
   private shopObserver?: MutationObserver;
@@ -88,6 +90,10 @@ export class HomepageSectionsComponent implements AfterViewInit, OnDestroy {
 
   private syncEmptyState(grid: HTMLElement){
     const existing=grid.querySelector<HTMLElement>('.catalog-empty-state');
+    if(!this.productService.loaded()){
+      existing?.remove();
+      return;
+    }
     const hasProducts=Array.from(grid.children).some(child=>!child.classList.contains('catalog-empty-state'));
     if(!hasProducts && !existing){
       const empty=document.createElement('div');
