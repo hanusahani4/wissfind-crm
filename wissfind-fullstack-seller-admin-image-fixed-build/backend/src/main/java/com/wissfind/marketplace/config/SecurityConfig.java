@@ -37,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/product/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/homepage").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/shipping-config").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/homepage/events/cart-add").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
