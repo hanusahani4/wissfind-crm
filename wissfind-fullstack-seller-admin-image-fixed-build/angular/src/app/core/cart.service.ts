@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, effect, signal } from '@angular/core';
 import { BackendApiService } from './backend-api.service';
 import { Product } from './product.model';
 
@@ -30,6 +30,11 @@ export class CartService {
 
   constructor(private api: BackendApiService) {
     void this.loadShippingConfig();
+    effect(() => {
+      if (!this.codAllowed() && this.paymentMethod() === 'COD') {
+        this.paymentMethod.set('RAZORPAY');
+      }
+    });
   }
 
   readonly count = computed(() => this.items().reduce((sum, item) => sum + Math.max(0, item.quantity), 0));
