@@ -18,7 +18,7 @@ export class ProductService {
     this.loading = true;
     try {
       const pageSize = 8;
-      const first:any = await this.api.get(`/products/paged?page=0&size=${pageSize}&search=`, signal);
+      const first:any = await this.api.get(`/homepage?page=0&size=${pageSize}`, signal);
       const firstItems = Array.isArray(first?.content) ? first.content.map((x:any) => this.map(x)) : [];
       this.products.splice(0, this.products.length, ...firstItems);
       this.productsVersion.update(v => v + 1);
@@ -31,10 +31,7 @@ export class ProductService {
         this.loading = false;
       }
     } catch {
-      if (signal?.aborted) {
-        this.loading = false;
-        return;
-      }
+      if (signal?.aborted) { this.loading = false; return; }
       this.products.splice(0, this.products.length);
       this.productsVersion.update(v => v + 1);
       this.loading = false;
@@ -47,7 +44,7 @@ export class ProductService {
       for (let start = 1; start < totalPages; start += concurrency) {
         if (signal?.aborted) return;
         const pages = Array.from({ length: Math.min(concurrency, totalPages - start) }, (_, offset) => start + offset);
-        const results = await Promise.all(pages.map(page => this.api.get(`/products/paged?page=${page}&size=${pageSize}&search=`, signal)));
+        const results = await Promise.all(pages.map(page => this.api.get(`/homepage?page=${page}&size=${pageSize}`, signal)));
         const nextProducts:Product[] = [];
         for (const result of results) {
           if (Array.isArray((result as any)?.content)) nextProducts.push(...(result as any).content.map((x:any) => this.map(x)));
@@ -58,55 +55,36 @@ export class ProductService {
           nextProducts.forEach(p => this.saveCachedProduct(p));
         }
       }
-    } catch {
-      // Keep pages already loaded.
-    } finally {
-      this.loaded = !signal?.aborted;
-      this.loading = false;
-    }
+    } catch { /* Keep pages already loaded. */ }
+    finally { this.loaded = !signal?.aborted; this.loading = false; }
   }
 
   async loadPage(page: number, size = 8, search = '', signal?: AbortSignal): Promise<{items: Product[]; total: number; totalPages: number}> {
     try {
       const safePage = Math.max(0, page);
       const safeSize = Math.min(24, Math.max(1, size));
-      const params = `page=${safePage}&size=${safeSize}&search=${encodeURIComponent(search.trim())}`;
-      const data:any = await this.api.get(`/products/paged?${params}`, signal);
-      const items = Array.isArray(data?.content) ? data.content.map((x:any) => this.map(x)) : [];
+      const params = `page=${safePage}&size=${safeSize}`;
+      const data:any = await this.api.get(`/homepage?${params}`, signal);
+      let items = Array.isArray(data?.content) ? data.content.map((x:any) => this.map(x)) : [];
+      const term = search.trim().toLowerCase();
+      if (term) items = items.filter((p:Product) => `${p.name} ${p.category} ${p.subcategory} ${p.brand}`.toLowerCase().includes(term));
       items.forEach((p: Product) => this.saveCachedProduct(p));
       return { items, total: Number(data?.totalElements || 0), totalPages: Math.max(1, Number(data?.totalPages || 1)) };
-    } catch {
-      return { items: [], total: 0, totalPages: 1 };
-    }
+    } catch { return { items: [], total: 0, totalPages: 1 }; }
   }
 
-  async reload(): Promise<void> {
-    this.loaded=false;
-    this.loading=false;
-    await this.load();
-  }
+  async reload(): Promise<void> { this.loaded=false; this.loading=false; await this.load(); }
 
   async getByIdAsync(id:string, signal?:AbortSignal): Promise<Product|undefined> {
-    // The product detail page gets a cached snapshot immediately on a hard
-    // refresh. The API request still runs so price, stock and images become
-    // fresh in the background.
     try {
       const data:any = await this.api.get(`/products/${encodeURIComponent(id)}`, signal);
       const mapped=this.map(data);
       this.saveCachedProduct(mapped);
       const existing=this.products.find(x=>String(x.id)===String(id));
-      if(existing){
-        Object.assign(existing, mapped);
-        this.productsVersion.update(v => v + 1);
-        return existing;
-      }
-      this.products.push(mapped);
-      this.productsVersion.update(v => v + 1);
-      return mapped;
+      if(existing){ Object.assign(existing, mapped); this.productsVersion.update(v => v + 1); return existing; }
+      this.products.push(mapped); this.productsVersion.update(v => v + 1); return mapped;
     } catch {
-      if (!signal?.aborted) {
-        try { await this.load(signal); } catch { /* local fallback below */ }
-      }
+      if (!signal?.aborted) { try { await this.load(signal); } catch { /* local fallback below */ } }
       return this.products.find(p=>String(p.id)===String(id));
     }
   }
@@ -114,34 +92,22 @@ export class ProductService {
   getById(id:string): Product|undefined {
     const existing=this.products.find(p=>String(p.id)===String(id));
     if(existing) return existing;
-
     if(id){
       const cached = this.readCachedProduct(id);
-      if (cached) {
-        this.products.push(cached);
-        return cached;
-      }
-
+      if (cached) { this.products.push(cached); return cached; }
       const placeholder:Product={
-        id:String(id), name:'', category:'Home & Living', subcategory:'', type:'',
-        brand:'', gender:'', material:'', warranty:'', returnDays:7, weight:undefined,
-        dimensions:'', hsnCode:'', taxIncluded:true, featured:false, gstPercent:0,
-        shippingFee:0, platformFee:0, stock:0, price:0, oldPrice:undefined,
+        id:String(id), name:'', category:'Home & Living', subcategory:'', type:'', brand:'', gender:'', material:'', warranty:'', returnDays:7, weight:undefined,
+        dimensions:'', hsnCode:'', taxIncluded:true, featured:false, gstPercent:0, shippingFee:0, platformFee:0, stock:0, price:0, oldPrice:undefined,
         rating:0, reviews:0, image:'', images:[], description:'', tags:[], colors:[], sizes:[]
       };
-      this.products.push(placeholder);
-      return placeholder;
+      this.products.push(placeholder); return placeholder;
     }
     return undefined;
   }
 
   private saveCachedProduct(product: Product) {
     if (typeof localStorage === 'undefined' || !product?.id) return;
-    try {
-      localStorage.setItem(this.cachePrefix + String(product.id), JSON.stringify({
-        savedAt: Date.now(), product
-      }));
-    } catch { /* storage may be unavailable or full */ }
+    try { localStorage.setItem(this.cachePrefix + String(product.id), JSON.stringify({ savedAt: Date.now(), product })); } catch { }
   }
 
   private readCachedProduct(id: string): Product|undefined {
@@ -150,14 +116,9 @@ export class ProductService {
       const raw = localStorage.getItem(this.cachePrefix + String(id));
       if (!raw) return undefined;
       const parsed = JSON.parse(raw);
-      if (!parsed?.product || Date.now() - Number(parsed.savedAt || 0) > this.cacheTtlMs) {
-        localStorage.removeItem(this.cachePrefix + String(id));
-        return undefined;
-      }
+      if (!parsed?.product || Date.now() - Number(parsed.savedAt || 0) > this.cacheTtlMs) { localStorage.removeItem(this.cachePrefix + String(id)); return undefined; }
       return this.map(parsed.product);
-    } catch {
-      return undefined;
-    }
+    } catch { return undefined; }
   }
 
   private map(x:any):Product {
