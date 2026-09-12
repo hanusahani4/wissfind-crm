@@ -56,9 +56,7 @@ public class HomepageController {
 
     @GetMapping("/config")
     @PreAuthorize("hasRole('ADMIN')")
-    public HomepageConfiguration getConfig() {
-        return config();
-    }
+    public HomepageConfiguration getConfig() { return config(); }
 
     @PutMapping("/config")
     @PreAuthorize("hasRole('ADMIN')")
@@ -86,23 +84,23 @@ public class HomepageController {
     }
 
     private List<Product> rank(List<Product> source, HomepageConfiguration c) {
+        prepare(source);
+        Map<Long, Integer> manual = manualOrder(c.manualProductIds);
+
         if (c.mode == HomepageConfiguration.Mode.MANUAL) {
-            Map<Long, Integer> manual = manualOrder(c.manualProductIds);
-            return source.stream().sorted(Comparator
-                    .comparingInt((Product p) -> manual.getOrDefault(p.id, Integer.MAX_VALUE))
-                    .thenComparingDouble(this::automaticScore).reversed()).toList();
+            return source.stream()
+                    .sorted(Comparator.comparingInt((Product p) -> manual.getOrDefault(p.id, Integer.MAX_VALUE))
+                            .thenComparing(Comparator.comparingDouble((Product p) -> automaticScore(p, c)).reversed()))
+                    .toList();
         }
 
         if (c.mode == HomepageConfiguration.Mode.HYBRID) {
-            Map<Long, Integer> manual = manualOrder(c.manualProductIds);
             return source.stream().sorted(Comparator.comparingDouble((Product p) ->
                     automaticScore(p, c) + manualBoost(manual.get(p.id), source.size())).reversed()).toList();
         }
 
         return source.stream().sorted(Comparator.comparingDouble((Product p) -> automaticScore(p, c)).reversed()).toList();
     }
-
-    private double automaticScore(Product p) { return automaticScore(p, config()); }
 
     private double automaticScore(Product p, HomepageConfiguration c) {
         double maxSales = Math.max(1, sourceMaxSales);
@@ -112,13 +110,12 @@ public class HomepageController {
                 + c.viewsWeight * views.countByProductId(p.id) / maxViews;
     }
 
-    private int sourceMaxSales;
-    private long sourceMaxViews;
+    private int sourceMaxSales = 1;
+    private long sourceMaxViews = 1;
 
-    private List<Product> prepare(List<Product> source) {
+    private void prepare(List<Product> source) {
         sourceMaxSales = source.stream().mapToInt(p -> Math.max(0, p.sales)).max().orElse(1);
         sourceMaxViews = source.stream().mapToLong(p -> views.countByProductId(p.id)).max().orElse(1);
-        return source;
     }
 
     private double manualBoost(Integer position, int total) {
@@ -131,8 +128,10 @@ public class HomepageController {
         if (ids == null || ids.isBlank()) return result;
         int index = 0;
         for (String token : ids.split(",")) {
-            try { Long id = Long.valueOf(token.trim()); if (!result.containsKey(id)) result.put(id, index++); }
-            catch (Exception ignored) { }
+            try {
+                Long id = Long.valueOf(token.trim());
+                if (!result.containsKey(id)) result.put(id, index++);
+            } catch (Exception ignored) { }
         }
         return result;
     }
