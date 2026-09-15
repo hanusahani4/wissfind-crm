@@ -17,20 +17,16 @@ export class ReviewService {
       const rows:any[]=await this.api.get(`/reviews/product/${productId}`, signal);
       const result = rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),
         date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
-
-      // This app uses Angular's zoneless change detection. The component that
-      // awaits this method assigns the returned review list in the next
-      // microtask, so the refresh must happen one macrotask later. Otherwise
-      // the reviews/rating can appear only after the user clicks a star or
-      // otherwise interacts with the page.
-      setTimeout(() => {
-        try { this.appRef.tick(); } catch { /* keep the review request successful */ }
-      }, 0);
-
+      setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
       return result;
-    } catch {
-      return [];
-    }
+    } catch { return []; }
+  }
+
+  async canReview(productId:string, signal?:AbortSignal):Promise<boolean> {
+    try {
+      const result:any=await this.api.get(`/reviews/product/${productId}/eligibility`, signal);
+      return !!result?.canReview;
+    } catch { return false; }
   }
 
   async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>) {
@@ -47,9 +43,6 @@ export class ReviewService {
   }
 
   isReviewLiked(reviewId:string){return this.likes.has(reviewId);}
-
-  // These are intentionally synchronous because the product-detail template
-  // renders them directly. Returning a Promise here displayed "[object Promise]".
   getProductLikeCount(_productId:string){return 0;}
   isProductLiked(_productId:string){return false;}
   toggleProductLike(_productId:string){return false;}
