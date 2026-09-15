@@ -18,5 +18,10 @@ public class User extends BaseEntity {
     @Column(name="telegram_chat_id")
     public String telegramChatId;
 
+    /** One-time token used to safely bind a seller account to a Telegram chat. */
+    @Column(name="telegram_connect_token", unique=true, length=64)
+    @JsonIgnore
+    public String telegramConnectToken;
+
     public enum Role { CUSTOMER, SELLER, ADMIN }
 }
