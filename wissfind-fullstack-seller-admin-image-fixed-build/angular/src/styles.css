@@ -40,7 +40,6 @@ h2 { font-size: 30px; }
 .error { color: var(--danger); font-size: 13px; }
 .success { color: var(--success); font-size: 13px; }
 
-/* Customer header: keep it pinned and always reserve space for right-side actions. */
 .header { position: sticky !important; top: 0 !important; z-index: 1000 !important; width: 100%; }
 .header .container { width: calc(100% - 32px); max-width: 1850px; }
 .header .nav { min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; padding-top: 8px; padding-bottom: 8px; }
@@ -70,6 +69,14 @@ h2 { font-size: 30px; }
   .header .links { order: 3; flex: 1 1 100%; width: 100%; padding: 4px 0 2px; }
   .header .search { order: 2; flex: 1 1 260px; max-width: 360px; }
   .header .actions { order: 2; margin-left: auto; }
+}
+
+/* Reviews must stack on phones so the composer can never cover customer comments. */
+@media (max-width: 700px) {
+  .review-layout { grid-template-columns: 1fr !important; }
+  .write-review { position: static !important; width: 100%; }
+  .review-list { width: 100%; min-width: 0; }
+  .review-card { min-width: 0; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 700px) {
