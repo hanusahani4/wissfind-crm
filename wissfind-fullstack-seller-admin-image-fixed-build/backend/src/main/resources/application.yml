@@ -49,6 +49,11 @@ app:
       base-url: ${NINZA_SMS_BASE_URL:https://ninzasms.in.net/auth/send_sms.php}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
     daily-limit: ${OTP_DAILY_LIMIT:444}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    bot-username: ${TELEGRAM_BOT_USERNAME:}
+    poll-ms: ${TELEGRAM_POLL_MS:3000}
+    order-poll-ms: ${TELEGRAM_ORDER_POLL_MS:5000}
 
 management:
   endpoints:
