@@ -1,0 +1,95 @@
+name: Complete Telegram seller UI
+
+on:
+  push:
+    branches:
+      - fix/production-api-base-url
+    paths:
+      - .github/workflows/complete-telegram-ui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-seller-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/production-api-base-url
+          fetch-depth: 1
+
+      - name: Add Telegram connection UI
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/seller.component.ts")
+          text = path.read_text(encoding="utf-8")
+
+          if "telegramConnected" in text:
+              print("Telegram UI already present")
+          else:
+              overview_end = text.index("</section>", text.index("section==='Overview'"))
+              telegram_panel = '''
+
+   <div class="panel form" *ngIf="section==='Overview'">
+    <div class="title">
+     <div><h2>Telegram order notifications</h2><p class="muted">Connect Telegram once to receive new customer orders automatically.</p></div>
+     <span class="status">{{telegramConnected ? 'Connected' : 'Not connected'}}</span>
+    </div>
+    <p class="muted" *ngIf="telegramConnected">✅ Telegram is connected. New orders for this seller will be sent to your Telegram bot.</p>
+    <button type="button" class="primary" [disabled]="telegramBusy" (click)="connectTelegram()">{{telegramBusy ? 'Opening Telegram...' : (telegramConnected ? 'Reconnect Telegram' : 'Connect Telegram')}}</button>
+    <p class="error" *ngIf="telegramError">{{telegramError}}</p>
+   </div>'''
+              text = text[:overview_end] + telegram_panel + text[overview_end:]
+
+              text = text.replace(
+                  "report:any={orders:0,sales:0,products:0,returns:0,payouts:0,coupons:0,liveProducts:0,pendingProducts:0};",
+                  "report:any={orders:0,sales:0,products:0,returns:0,payouts:0,coupons:0,liveProducts:0,pendingProducts:0}; telegramConnected=false; telegramBusy=false; telegramError='';"
+              )
+
+              text = text.replace(
+                  "constructor(){void this.go('Overview');}",
+                  "constructor(){void this.go('Overview');void this.loadTelegramStatus();}"
+              )
+
+              methods = '''
+ async loadTelegramStatus(){
+  try{const data:any=await this.api.get('/telegram/status',this.requestSignal);this.telegramConnected=!!data?.connected;this.telegramError='';this.cdr.markForCheck();}
+  catch{if(!this.requestSignal.aborted){this.telegramConnected=false;this.cdr.markForCheck();}}
+ }
+ async connectTelegram(){
+  if(this.telegramBusy)return;
+  this.telegramBusy=true;this.telegramError='';
+  try{
+   const data:any=await this.api.get('/telegram/connect',this.requestSignal);
+   if(!data?.connectUrl)throw new Error('Telegram connection link is unavailable');
+   window.open(data.connectUrl,'_blank','noopener,noreferrer');
+   const started=Date.now();
+   const check=async()=>{
+    if(this.requestSignal.aborted)return;
+    try{
+     const status:any=await this.api.get('/telegram/status',this.requestSignal);
+     if(status?.connected){this.telegramConnected=true;this.telegramBusy=false;this.cdr.markForCheck();alert('Telegram connected successfully.');return;}
+    }catch{}
+    if(Date.now()-started<60000){window.setTimeout(()=>void check(),3000);}else{this.telegramBusy=false;this.cdr.markForCheck();}
+   };
+   window.setTimeout(()=>void check(),3000);
+  }catch(e:any){this.telegramBusy=false;this.telegramError=e?.error?.error||e?.error?.message||e?.message||'Unable to connect Telegram';this.cdr.markForCheck();}
+ }
+'''
+              text = text.replace(" async logout(){", methods + " async logout(){")
+              path.write_text(text, encoding="utf-8")
+
+      - name: Commit seller UI and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/complete-telegram-ui.yml
+          git add wissfind-fullstack-seller-admin-image-fixed-build/angular/src/app/pages/seller.component.ts .github/workflows/complete-telegram-ui.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Add seller Telegram connect UI"
+          git push origin fix/production-api-base-url
