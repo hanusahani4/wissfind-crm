@@ -22,8 +22,7 @@ export class ReviewService {
     let result:ProductReview[]=[];
     try {
       const rows:any[]=await this.api.get(`/reviews/product/${productId}`, signal);
-      result=rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),
-        date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
+      result=rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
     } catch {}
     await this.getEligibility(productId,signal);
     setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
@@ -44,18 +43,18 @@ export class ReviewService {
   }
 
   private hideReviewFormUntilEligibilityKnown(){
-    if(typeof document==='undefined') return;
-    if(this.eligibilityStyle) return;
+    if(typeof document==='undefined'||this.eligibilityStyle) return;
     this.eligibilityStyle=document.createElement('style');
-    this.eligibilityStyle.textContent='.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}';
     document.head.appendChild(this.eligibilityStyle);
+    this.eligibilityStyle.textContent='.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}@media(max-width:700px){.review-layout{grid-template-columns:1fr!important}.write-review{position:static!important}}';
   }
 
   private applyEligibilityToForm(eligibility:ReviewEligibility){
     if(typeof document==='undefined'||!this.eligibilityStyle) return;
+    const mobile='@media(max-width:700px){.review-layout{grid-template-columns:1fr!important}.write-review{position:static!important}}';
     this.eligibilityStyle.textContent=eligibility.canReview
-      ? '.review-layout{grid-template-columns:minmax(0,1.5fr) minmax(300px,.7fr)}'
-      : '.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}';
+      ? `.review-layout{grid-template-columns:minmax(0,1.5fr) minmax(300px,.7fr)}${mobile}`
+      : `.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}${mobile}`;
   }
 
   async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>) {
