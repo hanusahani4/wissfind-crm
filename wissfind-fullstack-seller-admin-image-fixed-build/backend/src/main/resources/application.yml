@@ -48,6 +48,7 @@ app:
       sender-id: ${NINZA_SMS_SENDER_ID:}
       base-url: ${NINZA_SMS_BASE_URL:https://ninzasms.in.net/auth/send_sms.php}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+    daily-limit: ${OTP_DAILY_LIMIT:444}
 
 management:
   endpoints:
