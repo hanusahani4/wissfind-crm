@@ -5,6 +5,7 @@ import { takeUntil } from 'rxjs/operators';
 import { SellerVariantDomBridge } from './seller-variant-dom-bridge';
 import { ProductVariantDomBridge } from './product-variant-dom-bridge';
 import { SellerVariantHelpBridge } from './seller-variant-help-bridge';
+import { VariantUxBridge } from './variant-ux-bridge';
 
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
@@ -19,6 +20,7 @@ export class BackendApiService {
     SellerVariantDomBridge.install();
     ProductVariantDomBridge.install();
     SellerVariantHelpBridge.install();
+    VariantUxBridge.install();
   }
 
   private authHeaders(): HttpHeaders {
