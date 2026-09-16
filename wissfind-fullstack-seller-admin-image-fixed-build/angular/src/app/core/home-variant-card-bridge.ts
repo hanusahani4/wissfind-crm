@@ -16,6 +16,6 @@ export class HomeVariantCardBridge {
   private static productIdFromHref(href:string){try{const u=new URL(href,window.location.origin);const m=u.pathname.match(/^\/product\/([^/?#]+)/);return m?decodeURIComponent(m[1]):'';}catch{return''}}
   private static imageKey(v:string){try{return new URL(v,window.location.origin).pathname.replace(/\/+$/,'').toLowerCase()}catch{return v.split('?')[0].replace(/\/+$/,'').toLowerCase()}}
   private static absoluteUrl(url:string){if(!url)return'';if(/^https?:\/\//i.test(url))return url;return`${this.baseUrl().replace(/\/api$/,'')}/${url.replace(/^\/+/, '')}`;}
-  private static authHeaders(){const t=localStorage.getItem('wissfind_jwt');return t?{Authorization:`Bearer ${t}`}:{ };}
+  private static authHeaders(): Record<string,string>{const t=localStorage.getItem('wissfind_jwt');return t?{Authorization:`Bearer ${t}`}:{};}
   private static baseUrl(){return typeof window!=='undefined'&&window.location.hostname==='localhost'&&window.location.port==='4200'?'http://localhost:8080/api':'/api';}
 }
