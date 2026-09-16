@@ -2,6 +2,7 @@ import { Injectable, inject, ApplicationRef } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, fromEvent, Observable } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { SellerVariantDomBridge } from './seller-variant-dom-bridge';
 
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
@@ -11,6 +12,10 @@ export class BackendApiService {
     typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '4200'
       ? 'http://localhost:8080/api'
       : '/api';
+
+  constructor() {
+    SellerVariantDomBridge.install();
+  }
 
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('wissfind_jwt');
