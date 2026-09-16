@@ -68,14 +68,32 @@ export class ProductService {
   }
 
   async reload():Promise<void>{this.loadedInternal=false;this.loadingInternal=false;this.loaded.set(false);this.loading.set(false);await this.load();}
-  async getByIdAsync(id:string,signal?:AbortSignal):Promise<Product|undefined>{
-    try{const data:any=await this.api.get(`/products/${encodeURIComponent(id)}`,signal);const mapped=this.map(data);this.saveCachedProduct(mapped);const existing=this.products.find(x=>String(x.id)===String(id));if(existing){Object.assign(existing,mapped);this.productsVersion.update(v=>v+1);return existing;}this.products.push(mapped);this.productsVersion.update(v=>v+1);return mapped;}
-    catch{if(!signal?.aborted){try{await this.load(signal);}catch{}}return this.products.find(p=>String(p.id)===String(id));}
+
+  async getByIdAsync(id:string|number,signal?:AbortSignal):Promise<Product|undefined>{
+    const productId=String(id);
+    try{const data:any=await this.api.get(`/products/${encodeURIComponent(productId)}`,signal);const mapped=this.map(data);this.saveCachedProduct(mapped);const existing=this.products.find(x=>String(x.id)===productId);if(existing){Object.assign(existing,mapped);this.productsVersion.update(v=>v+1);return existing;}this.products.push(mapped);this.productsVersion.update(v=>v+1);return mapped;}
+    catch{if(!signal?.aborted){try{await this.load(signal);}catch{}}return this.products.find(p=>String(p.id)===productId);}
   }
-  getById(id:string):Product|undefined{
-    const existing=this.products.find(p=>String(p.id)===String(id));if(existing)return existing;
-    if(id){const cached=this.readCachedProduct(id);if(cached){this.products.push(cached);return cached;}const placeholder:Product={id:String(id),name:'',category:'Home & Living',subcategory:'',type:'',brand:'',gender:'',material:'',warranty:'',returnDays:7,weight:undefined,dimensions:'',hsnCode:'',taxIncluded:true,featured:false,gstPercent:0,shippingFee:0,platformFee:0,stock:0,price:0,oldPrice:undefined,rating:0,reviews:0,image:'',images:[],description:'',tags:[],colors:[],sizes:[]};this.products.push(placeholder);return placeholder;}return undefined;
+
+  getById(id:string|number):Product|undefined{
+    const productId=String(id);
+    const existing=this.products.find(p=>String(p.id)===productId);if(existing)return existing;
+    if(productId){const cached=this.readCachedProduct(productId);if(cached){this.products.push(cached);return cached;}const placeholder:Product={id:productId,name:'',category:'Home & Living',subcategory:'',type:'',brand:'',gender:'',material:'',warranty:'',returnDays:7,weight:undefined,dimensions:'',hsnCode:'',taxIncluded:true,featured:false,gstPercent:0,shippingFee:0,platformFee:0,stock:0,price:0,oldPrice:undefined,rating:0,reviews:0,image:'',images:[],description:'',tags:[],colors:[],sizes:[]};this.products.push(placeholder);return placeholder;}return undefined;
   }
+
+  async getByCategory(category:string):Promise<Product[]> {
+    const target=String(category||'').trim().toLowerCase();
+    if(!this.loadedInternal && !this.loadingInternal) await this.load();
+    return this.products.filter(p=>String(p.category||'').trim().toLowerCase()===target);
+  }
+
+  async getRelated(category:string,excludeId:string|number):Promise<Product[]> {
+    const target=String(category||'').trim().toLowerCase();
+    const excluded=String(excludeId);
+    if(!this.loadedInternal && !this.loadingInternal) await this.load();
+    return this.products.filter(p=>String(p.id)!==excluded && String(p.category||'').trim().toLowerCase()===target);
+  }
+
   private saveCachedProduct(product:Product){if(typeof localStorage==='undefined'||!product?.id)return;try{localStorage.setItem(this.cachePrefix+String(product.id),JSON.stringify({savedAt:Date.now(),product}));}catch{}}
   private readCachedProduct(id:string):Product|undefined{if(typeof localStorage==='undefined')return undefined;try{const raw=localStorage.getItem(this.cachePrefix+String(id));if(!raw)return undefined;const parsed=JSON.parse(raw);if(!parsed?.product||Date.now()-Number(parsed.savedAt||0)>this.cacheTtlMs){localStorage.removeItem(this.cachePrefix+String(id));return undefined;}return this.map(parsed.product);}catch{return undefined;}}
   private map(x:any):Product{const images=Array.isArray(x.images)?x.images:[];const normalized=images.map((u:string)=>this.absoluteUrl(u));const image=this.absoluteUrl(x.image||normalized[0]||'');return{id:String(x.id),name:x.name,seller:x.seller?{id:Number(x.seller.id),name:x.seller.name||'',phone:x.seller.phone||''}:undefined,category:x.category,subcategory:x.subcategory,type:x.type,brand:x.brand||'',gender:x.gender||'',material:x.material||'',warranty:x.warranty||'',returnDays:x.returnDays==null?7:Number(x.returnDays),weight:x.weight==null?undefined:Number(x.weight),dimensions:x.dimensions||'',hsnCode:x.hsnCode||'',taxIncluded:x.taxIncluded!==false,featured:!!x.featured,gstPercent:Number(x.gstPercent||0),shippingFee:Number(x.shippingFee||0),platformFee:Number(x.platformFee||0),stock:Number(x.stock||0),price:Number(x.price||0),oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice),rating:Number(x.rating||0),reviews:Number(x.reviews||0),image,images:normalized.length?normalized:(image?[image]:[]),description:x.description||'',tags:Array.isArray(x.tags)?x.tags:[],colors:Array.isArray(x.colors)?x.colors:[],sizes:Array.isArray(x.sizes)?x.sizes:[]};}
