@@ -46,6 +46,26 @@ export class SellerVariantDomBridge {
 
   private static template(): string {
     return `
+      <style>
+        .seller-variant-bridge{margin:18px 0;border:1px solid #e2e5e9;border-radius:14px;padding:16px;background:#fafaf8;display:block}
+        .seller-variant-bridge *{box-sizing:border-box}
+        .sv-head,.sv-color-head,.sv-image-head,.sv-size-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .sv-head h3{margin:0 0 5px;font-size:18px}.sv-head p{margin:0;color:#777;font-size:12px}
+        .sv-head button,.sv-save{background:#111;color:#fff;border:0;border-radius:9px;padding:10px 13px;cursor:pointer;font-weight:700}
+        .sv-head button:disabled,.sv-save:disabled{opacity:.5;cursor:not-allowed}
+        .sv-color{margin-top:14px;background:#fff;border:1px solid #e1e4e8;border-radius:12px;padding:14px}
+        .sv-color-head{padding-bottom:12px;border-bottom:1px solid #eee}.sv-color-head label{display:grid;gap:6px;font-size:12px;font-weight:700;max-width:360px;width:100%}
+        .sv-color input,.sv-size input{border:1px solid #d9dde5;border-radius:8px;padding:9px;font:inherit;font-weight:400;min-width:0;background:#fff}
+        .sv-remove-color,.sv-remove-size,.sv-remove-image{border:0;background:transparent;color:#b42318;cursor:pointer}
+        .sv-image-head{margin-top:14px}.sv-upload{border:1px solid #d9dde5;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}.sv-upload input{display:none}
+        .sv-images{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}.sv-existing-images,.sv-new-images{display:contents}
+        .sv-image{position:relative}.sv-image img{width:82px;height:82px;object-fit:cover;border-radius:9px;border:1px solid #e5e7eb}.sv-image small{position:absolute;left:5px;bottom:5px;background:#111;color:#fff;border-radius:5px;padding:2px 5px;font-size:8px}
+        .sv-image button{position:absolute;right:3px;top:3px;width:21px;height:21px;border:0;border-radius:50%;background:#111;color:#fff;cursor:pointer}
+        .sv-size-head{margin-top:16px}.sv-add-size{border:0;background:transparent;text-decoration:underline;cursor:pointer}.sv-sizes{margin-top:9px;overflow:auto}
+        .sv-size{display:grid;grid-template-columns:1fr 1.5fr 100px 100px 90px 28px;gap:7px;align-items:center;margin-bottom:7px;min-width:680px}.sv-empty{padding:14px;border:1px dashed #d5d8dd;border-radius:9px;color:#888;font-size:12px;text-align:center;margin-top:14px}
+        .sv-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:14px}.sv-status{font-size:12px;color:#667085}
+        @media(max-width:700px){.sv-head{align-items:flex-start;flex-direction:column}.sv-size{min-width:620px}.seller-variant-bridge{padding:12px}}
+      </style>
       <div class="sv-head">
         <div><h3>Product variants</h3><p>Set color-specific images and size-level SKU, price, MRP and stock.</p></div>
         <button type="button" class="sv-add-color">+ Add color</button>
