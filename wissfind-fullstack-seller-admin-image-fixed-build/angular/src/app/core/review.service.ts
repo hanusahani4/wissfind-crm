@@ -17,21 +17,23 @@ export class ReviewService {
 
   constructor(private api:BackendApiService, private appRef:ApplicationRef){}
 
-  async getReviews(productId:string, signal?:AbortSignal):Promise<ProductReview[]> {
+  async getReviews(productId:string|number, signal?:AbortSignal):Promise<ProductReview[]> {
+    const id=String(productId);
     this.hideReviewFormUntilEligibilityKnown();
     let result:ProductReview[]=[];
     try {
-      const rows:any[]=await this.api.get(`/reviews/product/${productId}`, signal);
+      const rows:any[]=await this.api.get(`/reviews/product/${id}`, signal);
       result=rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
     } catch {}
-    await this.getEligibility(productId,signal);
+    await this.getEligibility(id,signal);
     setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
     return result;
   }
 
-  async getEligibility(productId:string, signal?:AbortSignal):Promise<ReviewEligibility> {
+  async getEligibility(productId:string|number, signal?:AbortSignal):Promise<ReviewEligibility> {
+    const id=String(productId);
     try {
-      const result:any=await this.api.get(`/reviews/product/${productId}/eligibility`, signal);
+      const result:any=await this.api.get(`/reviews/product/${id}/eligibility`, signal);
       const eligibility:ReviewEligibility={canReview:!!result?.canReview,purchased:!!result?.purchased,alreadyReviewed:!!result?.alreadyReviewed};
       this.applyEligibilityToForm(eligibility);
       return eligibility;
@@ -57,19 +59,25 @@ export class ReviewService {
       : `.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}${mobile}`;
   }
 
-  async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>) {
+  async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>):Promise<any>;
+  async addReview(productId:string|number, review:{rating:number;title:string;text:string}):Promise<any>;
+  async addReview(first:Omit<ProductReview,'id'|'date'|'likes'>|string|number, second?:{rating:number;title:string;text:string}) {
+    const review=typeof first==='object'
+      ? first
+      : {productId:String(first),rating:second?.rating||0,title:second?.title||'',text:second?.text||''};
     const r:any=await this.api.post(`/reviews/product/${review.productId}`,{rating:review.rating,title:review.title,text:review.text});
     return r.review;
   }
 
-  async toggleReviewLike(reviewId:string) {
-    if(this.likes.has(reviewId)) return false;
-    try { await this.api.patch(`/reviews/${reviewId}/like`,{}); this.likes.add(reviewId); return true; }
+  async toggleReviewLike(reviewId:string|number) {
+    const id=String(reviewId);
+    if(this.likes.has(id)) return false;
+    try { await this.api.patch(`/reviews/${id}/like`,{}); this.likes.add(id); return true; }
     catch { return false; }
   }
 
-  isReviewLiked(reviewId:string){return this.likes.has(reviewId);}
-  getProductLikeCount(_productId:string){return 0;}
-  isProductLiked(_productId:string){return false;}
-  toggleProductLike(_productId:string){return false;}
+  isReviewLiked(reviewId:string|number){return this.likes.has(String(reviewId));}
+  getProductLikeCount(_productId:string|number){return 0;}
+  isProductLiked(_productId:string|number){return false;}
+  toggleProductLike(_productId:string|number){return false;}
 }
