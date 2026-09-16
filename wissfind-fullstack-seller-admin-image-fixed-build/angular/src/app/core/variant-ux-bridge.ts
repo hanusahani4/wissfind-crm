@@ -58,9 +58,6 @@ export class VariantUxBridge {
         mrp.title = 'Original/list price';
         stock.title = 'Available quantity';
 
-        // Price/MRP = 0 is the untouched/default state. Clear the matching stock
-        // value too so the new row shows useful placeholders instead of 0 0 0.
-        // Once a real price exists, stock 0 is preserved as valid inventory data.
         const untouchedNumericState = price.value === '0' && mrp.value === '0';
         if (untouchedNumericState) {
           price.value = '';
@@ -103,11 +100,11 @@ export class VariantUxBridge {
 
       try {
         const variants = await this.getVariants(productId);
-        const match = this.findVariantByImage(variants, image);
+        const match = this.findAvailableVariantByImage(variants, image) || this.findFirstAvailableVariant(variants);
         const url = new URL(link.href, window.location.origin);
         if (match?.color) url.searchParams.set('variantColor', match.color);
         if (match?.size) url.searchParams.set('variantSize', match.size);
-        url.searchParams.set('variantImage', image);
+        if (match?.image) url.searchParams.set('variantImage', match.image);
         window.location.assign(url.toString());
       } catch {
         window.location.assign(link.href);
@@ -147,16 +144,33 @@ export class VariantUxBridge {
     return Array.isArray(data) ? data : (Array.isArray(data?.content) ? data.content : (Array.isArray(data?.variants) ? data.variants : []));
   }
 
-  private static findVariantByImage(variants: any[], image: string): { color?: string; size?: string } | null {
+  private static findAvailableVariantByImage(variants: any[], image: string): { color?: string; size?: string; image?: string } | null {
     const wanted = this.imageKey(image);
     for (const variant of variants) {
-      const images = Array.isArray(variant?.images) ? variant.images : [];
-      if (!images.some((candidate: any) => this.imageKey(String(candidate || '')) === wanted)) continue;
       const sizes = Array.isArray(variant?.sizes) ? variant.sizes : [];
-      const available = sizes.find((s: any) => Number(s?.stock ?? 0) > 0) || sizes[0];
+      const available = sizes.find((s: any) => Number(s?.stock ?? 0) > 0);
+      if (!available) continue;
+      const images = Array.isArray(variant?.images) ? variant.images.map((x: any) => String(x || '')).filter(Boolean) : [];
+      if (!images.some((candidate: string) => this.imageKey(candidate) === wanted)) continue;
       return {
         color: String(variant?.color ?? variant?.name ?? '').trim() || undefined,
-        size: String(available?.size ?? available?.name ?? '').trim() || undefined
+        size: String(available?.size ?? available?.name ?? '').trim() || undefined,
+        image: images[0] || undefined
+      };
+    }
+    return null;
+  }
+
+  private static findFirstAvailableVariant(variants: any[]): { color?: string; size?: string; image?: string } | null {
+    for (const variant of variants) {
+      const sizes = Array.isArray(variant?.sizes) ? variant.sizes : [];
+      const available = sizes.find((s: any) => Number(s?.stock ?? 0) > 0);
+      if (!available) continue;
+      const images = Array.isArray(variant?.images) ? variant.images.map((x: any) => String(x || '')).filter(Boolean) : [];
+      return {
+        color: String(variant?.color ?? variant?.name ?? '').trim() || undefined,
+        size: String(available?.size ?? available?.name ?? '').trim() || undefined,
+        image: images[0] || undefined
       };
     }
     return null;
