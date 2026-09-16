@@ -4,6 +4,7 @@ import { firstValueFrom, fromEvent, Observable } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { SellerVariantDomBridge } from './seller-variant-dom-bridge';
 import { ProductVariantDomBridge } from './product-variant-dom-bridge';
+import { SellerVariantHelpBridge } from './seller-variant-help-bridge';
 
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
@@ -17,6 +18,7 @@ export class BackendApiService {
   constructor() {
     SellerVariantDomBridge.install();
     ProductVariantDomBridge.install();
+    SellerVariantHelpBridge.install();
   }
 
   private authHeaders(): HttpHeaders {
@@ -26,13 +28,6 @@ export class BackendApiService {
       : new HttpHeaders();
   }
 
-  /**
-   * Refresh the application after an awaited HTTP promise has returned to the
-   * calling component. A macrotask is intentional here: Promise callbacks
-   * and async/await continuations are microtasks, so scheduling the tick with
-   * setTimeout guarantees that ProductDetailComponent has already assigned
-   * the loaded product before the view is checked.
-   */
   private refreshView(): void {
     setTimeout(() => {
       try {
@@ -76,54 +71,32 @@ export class BackendApiService {
   }
 
   get<T>(path: string, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.get<T>(`${this.baseUrl}${path}`, {
-      headers: this.authHeaders()
-    }), signal);
+    return this.request(this.http.get<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal);
   }
 
   post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, body, {
-      headers: this.authHeaders()
-    }), signal);
+    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal);
   }
 
   put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.put<T>(`${this.baseUrl}${path}`, body, {
-      headers: this.authHeaders()
-    }), signal);
+    return this.request(this.http.put<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal);
   }
 
-  patch<T>(
-    path: string,
-    body: unknown = {},
-    params?: Record<string, string | number>,
-    signal?: AbortSignal
-  ): Promise<T> {
-    return this.request(this.http.patch<T>(`${this.baseUrl}${path}`, body, {
-      headers: this.authHeaders(),
-      params
-    }), signal);
+  patch<T>(path: string, body: unknown = {}, params?: Record<string, string | number>, signal?: AbortSignal): Promise<T> {
+    return this.request(this.http.patch<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders(), params }), signal);
   }
 
   delete<T = void>(path: string, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, {
-      headers: this.authHeaders()
-    }), signal);
+    return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal);
   }
 
   getBlob(path: string, signal?: AbortSignal): Promise<Blob> {
-    return this.request(this.http.get(`${this.baseUrl}${path}`, {
-      headers: this.authHeaders(),
-      responseType: 'blob'
-    }), signal);
+    return this.request(this.http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders(), responseType: 'blob' }), signal);
   }
 
   upload<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
     let headers = this.authHeaders();
     headers = headers.delete('Content-Type');
-
-    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, formData, {
-      headers
-    }), signal);
+    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, formData, { headers }), signal);
   }
 }
