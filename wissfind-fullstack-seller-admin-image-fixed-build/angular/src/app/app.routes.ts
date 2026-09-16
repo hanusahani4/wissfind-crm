@@ -4,7 +4,7 @@ import { razorpayCheckoutGuard } from './core/razorpay-checkout.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent) },
-  { path: 'product/:id', loadComponent: () => import('./pages/product-detail.component').then(m => m.ProductDetailComponent) },
+  { path: 'product/:id', loadComponent: () => import('./pages/product-detail-variant-wrapper.component').then(m => m.ProductDetailVariantWrapperComponent) },
   { path: 'login', loadComponent: () => import('./pages/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then(m => m.SignupComponent) },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then(m => m.ForgotPasswordComponent) },
