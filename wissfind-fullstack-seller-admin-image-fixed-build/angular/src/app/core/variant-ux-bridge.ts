@@ -58,12 +58,13 @@ export class VariantUxBridge {
         mrp.title = 'Original/list price';
         stock.title = 'Available quantity';
 
-        // Only blank the untouched default row. A real saved variant with stock 0
-        // must remain 0 because zero stock is a valid inventory value.
-        const isDefaultRow = !size.value.trim() && !sku.value.trim();
-        if (isDefaultRow) {
-          if (price.value === '0') price.value = '';
-          if (mrp.value === '0') mrp.value = '';
+        // Price/MRP = 0 is the untouched/default state. Clear the matching stock
+        // value too so the new row shows useful placeholders instead of 0 0 0.
+        // Once a real price exists, stock 0 is preserved as valid inventory data.
+        const untouchedNumericState = price.value === '0' && mrp.value === '0';
+        if (untouchedNumericState) {
+          price.value = '';
+          mrp.value = '';
           if (stock.value === '0') stock.value = '';
         }
       });
