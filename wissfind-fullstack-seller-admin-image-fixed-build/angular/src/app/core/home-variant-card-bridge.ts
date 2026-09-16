@@ -50,10 +50,34 @@ export class HomeVariantCardBridge {
       })).filter((v: any) => v.color && v.sizes.length);
       if (!normalized.length) return;
 
+      // Home page must never present an unavailable variant. Prefer the current
+      // image only when that color still has stock; otherwise use the first color
+      // variant that has at least one size with stock > 0.
       const currentImage = (card.querySelector('.image-wrap img') as HTMLImageElement)?.currentSrc || (card.querySelector('.image-wrap img') as HTMLImageElement)?.src || '';
-      const selected = this.findByImage(normalized, currentImage) || normalized[0];
-      const selectedSize = selected.sizes.find((s: any) => s.stock > 0) || selected.sizes[0];
+      const currentImageVariant = this.findByImage(normalized, currentImage);
+      const selected = (currentImageVariant && this.hasAvailableStock(currentImageVariant))
+        ? currentImageVariant
+        : normalized.find((v: any) => this.hasAvailableStock(v));
+
+      if (!selected) {
+        // All variants are out of stock. Keep the parent product card in its
+        // normal out-of-stock state rather than showing an arbitrary variant.
+        card.dataset['variantCardDecorated'] = '1';
+        return;
+      }
+
+      const selectedSize = selected.sizes.find((s: any) => s.stock > 0);
       if (!selectedSize) return;
+
+      // Parent product stock for a variant product is the total of every size
+      // stock across every color. The backend persists the same total when
+      // variants are saved; this keeps the home card consistent with that value.
+      const totalStock = normalized.reduce(
+        (colorTotal: number, variant: any) => colorTotal + variant.sizes.reduce(
+          (sizeTotal: number, size: any) => sizeTotal + Math.max(0, Number(size.stock || 0)), 0
+        ), 0
+      );
+      card.dataset['variantTotalStock'] = String(totalStock);
 
       const image = card.querySelector('.image-wrap img') as HTMLImageElement | null;
       if (image && selected.images[0]) image.src = this.absoluteUrl(selected.images[0]);
@@ -92,11 +116,13 @@ export class HomeVariantCardBridge {
       }
 
       const meta = card.querySelector('.meta') as HTMLElement | null;
-      if (meta && !meta.querySelector('.variant-summary')) {
+      if (meta) {
+        const existing = meta.querySelector('.variant-summary') as HTMLElement | null;
+        if (existing) existing.remove();
         const summary = document.createElement('span');
         summary.className = 'variant-summary';
         summary.textContent = `${selected.color} · ${selectedSize.size}`;
-        summary.title = `Shown variant: ${selected.color}, ${selectedSize.size}, SKU ${selectedSize.sku || '—'}`;
+        summary.title = `Shown variant: ${selected.color}, ${selectedSize.size}, SKU ${selectedSize.sku || '—'}, total stock ${totalStock}`;
         summary.style.cssText = 'font-size:10px;text-transform:none;letter-spacing:0;color:#666;font-weight:700;margin-left:8px;white-space:nowrap;';
         meta.insertBefore(summary, meta.querySelector('.card-rating'));
       }
@@ -107,10 +133,24 @@ export class HomeVariantCardBridge {
         link.dataset['variantSize'] = selectedSize.size;
         link.dataset['variantImage'] = this.absoluteUrl(selected.images[0] || currentImage);
       }
+
+      // Angular initially enables/disables this button from parent p.stock. Make
+      // the UI reflect the variant total immediately after the variant API loads.
+      const addCart = card.querySelector('.add-cart') as HTMLButtonElement | null;
+      if (addCart) {
+        addCart.disabled = totalStock <= 0;
+        addCart.textContent = totalStock > 0 ? 'Add to cart' : 'Out of stock';
+        addCart.dataset['variantTotalStock'] = String(totalStock);
+      }
+
       card.dataset['variantCardDecorated'] = '1';
     } catch {
       card.dataset['variantCardDecorated'] = '1';
     }
+  }
+
+  private static hasAvailableStock(variant: any): boolean {
+    return Array.isArray(variant?.sizes) && variant.sizes.some((s: any) => Number(s?.stock ?? 0) > 0);
   }
 
   private static findByImage(variants: any[], image: string): any | null {
