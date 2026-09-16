@@ -2,13 +2,10 @@ import { Injectable, computed, effect, signal } from '@angular/core';
 import { BackendApiService } from './backend-api.service';
 import { Product } from './product.model';
 
-export interface CartItem { product: Product; quantity: number; }
+export interface CartVariant { color?: string; size?: string; sku?: string; price?: number; oldPrice?: number; image?: string; stock?: number; }
+export interface CartItem { product: Product; quantity: number; variant?: CartVariant; }
 export interface ShippingConfig {
-  freeShippingThreshold: number;
-  prepaidShippingCharge: number;
-  codShippingCharge: number;
-  codMaxOrderAmount: number;
-  codEnabled: boolean;
+  freeShippingThreshold: number; prepaidShippingCharge: number; codShippingCharge: number; codMaxOrderAmount: number; codEnabled: boolean;
 }
 export interface CartCharges {
   subtotal: number; productDiscount: number; couponDiscount: number; shippingCost: number; gst: number;
@@ -19,149 +16,43 @@ export interface CartCharges {
 export class CartService {
   private readonly items = signal<CartItem[]>(this.load());
   readonly cart = this.items.asReadonly();
-  readonly shippingConfig = signal<ShippingConfig>({
-    freeShippingThreshold: 200,
-    prepaidShippingCharge: 20,
-    codShippingCharge: 70,
-    codMaxOrderAmount: 2000,
-    codEnabled: true
-  });
+  readonly shippingConfig = signal<ShippingConfig>({ freeShippingThreshold: 200, prepaidShippingCharge: 20, codShippingCharge: 70, codMaxOrderAmount: 2000, codEnabled: true });
   readonly shippingConfigLoaded = signal(false);
 
   constructor(private api: BackendApiService) {
     void this.loadShippingConfig();
-    effect(() => {
-      // COD must never remain selected while the current payable amount is above
-      // the admin-configured COD limit (or COD has been disabled).
-      if (!this.codAllowed() && this.paymentMethod() === 'COD') {
-        this.paymentMethod.set('RAZORPAY');
-      }
-    });
+    effect(() => { if (!this.codAllowed() && this.paymentMethod() === 'COD') this.paymentMethod.set('RAZORPAY'); });
   }
 
   readonly count = computed(() => this.items().reduce((sum, item) => sum + Math.max(0, item.quantity), 0));
-  readonly subtotal = computed(() => this.items().reduce((sum, item) => {
-    const price = Math.max(0, Number(item.product.price) || 0);
-    const quantity = Math.max(0, Number(item.quantity) || 0);
-    return sum + price * quantity;
-  }, 0));
-  readonly couponCode = signal<string>('');
-  readonly giftWrap = signal<boolean>(false);
-  readonly paymentMethod = signal<'COD' | 'RAZORPAY'>('COD');
-
-  setPaymentMethod(method: 'COD' | 'RAZORPAY') {
-    // Never allow a high-value/disabled-COD order to switch back to COD,
-    // even if the customer clicks the radio button before the UI refreshes.
-    if (method === 'COD' && !this.codAllowed()) {
-      this.paymentMethod.set('RAZORPAY');
-      return;
-    }
-    this.paymentMethod.set(method === 'RAZORPAY' ? 'RAZORPAY' : 'COD');
-  }
-
-  readonly productDiscount = computed(() => Math.round(this.items().reduce((sum, item) => {
-    const price = Math.max(0, Number(item.product.price) || 0);
-    const oldPrice = Math.max(price, Number(item.product.oldPrice) || price);
-    return sum + Math.max(0, oldPrice - price) * Math.max(0, item.quantity);
-  }, 0)));
-  readonly couponDiscount = computed(() => this.couponCode().trim().toUpperCase() === 'WISS10' ? Math.round(this.subtotal() * 0.10) : 0);
+  private itemPrice(item: CartItem) { return Math.max(0, Number(item.variant?.price ?? item.product.price) || 0); }
+  private itemOldPrice(item: CartItem) { return Math.max(this.itemPrice(item), Number(item.variant?.oldPrice ?? item.product.oldPrice) || this.itemPrice(item)); }
+  readonly subtotal = computed(() => this.items().reduce((sum, item) => sum + this.itemPrice(item) * Math.max(0, Number(item.quantity) || 0), 0));
+  readonly couponCode = signal<string>(''); readonly giftWrap = signal<boolean>(false); readonly paymentMethod = signal<'COD' | 'RAZORPAY'>('COD');
+  setPaymentMethod(method: 'COD' | 'RAZORPAY') { if (method === 'COD' && !this.codAllowed()) { this.paymentMethod.set('RAZORPAY'); return; } this.paymentMethod.set(method); }
+  readonly productDiscount = computed(() => Math.round(this.items().reduce((sum, item) => sum + Math.max(0, this.itemOldPrice(item) - this.itemPrice(item)) * Math.max(0, item.quantity), 0)));
+  readonly couponDiscount = computed(() => this.couponCode().trim().toUpperCase() === 'WISS10' ? Math.round(this.subtotal() * .10) : 0);
   readonly payableProducts = computed(() => Math.max(0, this.subtotal() - this.couponDiscount()));
-  readonly codAllowed = computed(() => {
-    const config = this.shippingConfig();
-    const maxCod = Math.max(0, Number(config.codMaxOrderAmount) || 0);
-    return config.codEnabled && this.payableProducts() <= maxCod;
-  });
-  readonly codUnavailableReason = computed(() => {
-    const config = this.shippingConfig();
-    if (!config.codEnabled) return 'Cash on Delivery is currently unavailable.';
-    const maxCod = Math.max(0, Number(config.codMaxOrderAmount) || 0);
-    if (this.payableProducts() > maxCod) return `COD is unavailable above ₹${maxCod.toLocaleString('en-IN')}. Please choose prepaid payment.`;
-    return '';
-  });
-  readonly shippingCost = computed(() => this.shippingFor(this.paymentMethod()));
-  readonly platformFee = computed(() => 0);
-  readonly handlingFee = computed(() => 0);
-  readonly convenienceFee = computed(() => 0);
-  readonly giftWrapFee = computed(() => this.giftWrap() && this.subtotal() > 0 ? 49 : 0);
-  readonly taxableAmount = computed(() => Math.max(0, this.subtotal() - this.couponDiscount() + this.shippingCost() + this.giftWrapFee()));
-  readonly gst = computed(() => 0);
-  readonly totalSavings = computed(() => this.productDiscount() + this.couponDiscount());
-  readonly total = computed(() => this.totalFor(this.paymentMethod()));
-  readonly codTotal = computed(() => this.totalFor('COD'));
-  readonly razorpayTotal = computed(() => this.totalFor('RAZORPAY'));
-  readonly razorpaySavings = computed(() => Math.max(0, this.codTotal() - this.razorpayTotal()));
+  readonly codAllowed = computed(() => { const c=this.shippingConfig(); return c.codEnabled && this.payableProducts() <= Math.max(0, Number(c.codMaxOrderAmount)||0); });
+  readonly codUnavailableReason = computed(() => { const c=this.shippingConfig(); if(!c.codEnabled)return 'Cash on Delivery is currently unavailable.'; const max=Math.max(0,Number(c.codMaxOrderAmount)||0); return this.payableProducts()>max?`COD is unavailable above ₹${max.toLocaleString('en-IN')}. Please choose prepaid payment.`:''; });
+  readonly shippingCost = computed(() => this.shippingFor(this.paymentMethod())); readonly platformFee=computed(()=>0); readonly handlingFee=computed(()=>0); readonly convenienceFee=computed(()=>0);
+  readonly giftWrapFee=computed(()=>this.giftWrap()&&this.subtotal()>0?49:0); readonly taxableAmount=computed(()=>Math.max(0,this.subtotal()-this.couponDiscount()+this.shippingCost()+this.giftWrapFee())); readonly gst=computed(()=>0);
+  readonly totalSavings=computed(()=>this.productDiscount()+this.couponDiscount()); readonly total=computed(()=>this.totalFor(this.paymentMethod())); readonly codTotal=computed(()=>this.totalFor('COD')); readonly razorpayTotal=computed(()=>this.totalFor('RAZORPAY')); readonly razorpaySavings=computed(()=>Math.max(0,this.codTotal()-this.razorpayTotal()));
+  shippingFor(method:'COD'|'RAZORPAY'){const p=this.payableProducts(),c=this.shippingConfig();if(p<=0||p>=Math.max(0,Number(c.freeShippingThreshold)||0))return 0;return method==='COD'?Math.max(0,Number(c.codShippingCharge)||0):Math.max(0,Number(c.prepaidShippingCharge)||0);}
+  totalFor(method:'COD'|'RAZORPAY'){return Math.max(0,Math.round(this.payableProducts()+this.shippingFor(method)+this.giftWrapFee()));}
+  readonly summary=computed<CartCharges>(()=>({subtotal:this.subtotal(),productDiscount:this.productDiscount(),couponDiscount:this.couponDiscount(),shippingCost:this.shippingCost(),gst:this.gst(),platformFee:this.platformFee(),handlingFee:this.handlingFee(),convenienceFee:this.convenienceFee(),giftWrapFee:this.giftWrapFee(),totalSavings:this.totalSavings(),total:this.total()}));
 
-  shippingFor(method: 'COD' | 'RAZORPAY') {
-    const payableProducts = this.payableProducts();
-    const config = this.shippingConfig();
-    if (payableProducts <= 0 || payableProducts >= Math.max(0, Number(config.freeShippingThreshold) || 0)) return 0;
-    return method === 'COD'
-      ? Math.max(0, Number(config.codShippingCharge) || 0)
-      : Math.max(0, Number(config.prepaidShippingCharge) || 0);
+  private key(productId: string|number, variant?: CartVariant) { return `${productId}::${variant?.sku || `${variant?.color||''}|${variant?.size||''}`}`; }
+  add(product: Product, variant?: CartVariant) {
+    if (!product?.id) return;
+    const k=this.key(product.id,variant);
+    this.items.update(items => { const i=items.findIndex(x=>this.key(x.product.id,x.variant)===k); if(i<0)return [...items,{product,quantity:1,variant}]; const copy=[...items]; copy[i]={...copy[i],quantity:Math.max(1,copy[i].quantity+1)}; return copy; });
+    this.persist(); void this.api.post('/homepage/events/cart-add',{productId:product.id,variantSku:variant?.sku,variantColor:variant?.color,variantSize:variant?.size}).catch(()=>undefined);
   }
-
-  totalFor(method: 'COD' | 'RAZORPAY') {
-    return Math.max(0, Math.round(this.payableProducts() + this.shippingFor(method) + this.giftWrapFee()));
-  }
-
-  readonly summary = computed<CartCharges>(() => ({
-    subtotal: this.subtotal(), productDiscount: this.productDiscount(), couponDiscount: this.couponDiscount(), shippingCost: this.shippingCost(),
-    gst: this.gst(), platformFee: this.platformFee(), handlingFee: this.handlingFee(), convenienceFee: this.convenienceFee(),
-    giftWrapFee: this.giftWrapFee(), totalSavings: this.totalSavings(), total: this.total()
-  }));
-
-  add(product: Product) {
-    if (!product || !product.id) return;
-    const existing = this.items().find(item => item.product.id === product.id);
-    this.items.update(items => existing
-      ? items.map(item => item.product.id === product.id ? { ...item, quantity: Math.max(1, item.quantity + 1) } : item)
-      : [...items, { product, quantity: 1 }]);
-    this.persist();
-    void this.api.post('/homepage/events/cart-add', { productId: product.id }).catch(() => undefined);
-  }
-
-  update(productId: string, quantity: number) {
-    const safeQuantity = Math.max(0, Math.floor(Number(quantity) || 0));
-    this.items.update(items => safeQuantity <= 0
-      ? items.filter(item => item.product.id !== productId)
-      : items.map(item => item.product.id === productId ? { ...item, quantity: safeQuantity } : item));
-    this.persist();
-  }
-  remove(productId: string) { this.items.update(items => items.filter(item => item.product.id !== productId)); this.persist(); }
-  applyCoupon(code: string): boolean { const normalized = code.trim().toUpperCase(); if (normalized === 'WISS10') { this.couponCode.set(normalized); return true; } this.couponCode.set(''); return false; }
-  removeCoupon() { this.couponCode.set(''); }
-  setGiftWrap(enabled: boolean) { this.giftWrap.set(!!enabled); }
-  clear() { this.items.set([]); this.couponCode.set(''); this.giftWrap.set(false); this.persist(); }
-
-  private async loadShippingConfig() {
-    try {
-      const value: any = await this.api.get('/shipping-config');
-      if (value) {
-        this.shippingConfig.set({
-          freeShippingThreshold: Math.max(0, Number(value.freeShippingThreshold) || 0),
-          prepaidShippingCharge: Math.max(0, Number(value.prepaidShippingCharge) || 0),
-          codShippingCharge: Math.max(0, Number(value.codShippingCharge) || 0),
-          codMaxOrderAmount: Math.max(0, Number(value.codMaxOrderAmount) || 0),
-          codEnabled: value.codEnabled !== false
-        });
-      }
-    } catch {
-      // Keep safe defaults so checkout remains usable if the config endpoint is unavailable.
-    } finally {
-      this.shippingConfigLoaded.set(true);
-      // Re-evaluate after the server config arrives so a stale COD selection
-      // can never survive a newly loaded max-order restriction.
-      if (!this.codAllowed()) this.paymentMethod.set('RAZORPAY');
-    }
-  }
-
-  private persist() { try { localStorage.setItem('wissfind-cart', JSON.stringify(this.items())); } catch { } }
-  private load(): CartItem[] {
-    try {
-      const raw = localStorage.getItem('wissfind-cart'); if (!raw) return [];
-      const parsed = JSON.parse(raw); if (!Array.isArray(parsed)) return [];
-      return parsed.filter(item => item && item.product && item.product.id && Number(item.quantity) > 0)
-        .map(item => ({ product: item.product as Product, quantity: Math.max(1, Math.floor(Number(item.quantity))) }));
-    } catch { return []; }
-  }
+  update(productId:string|number,quantity:number,variant?:CartVariant){const q=Math.max(0,Math.floor(Number(quantity)||0));const k=this.key(productId,variant);this.items.update(items=>q<=0?items.filter(x=>this.key(x.product.id,x.variant)!==k):items.map(x=>this.key(x.product.id,x.variant)===k?{...x,quantity:q}:x));this.persist();}
+  remove(productId:string|number,variant?:CartVariant){const k=this.key(productId,variant);this.items.update(items=>items.filter(x=>this.key(x.product.id,x.variant)!==k));this.persist();}
+  applyCoupon(code:string):boolean{const n=code.trim().toUpperCase();if(n==='WISS10'){this.couponCode.set(n);return true;}this.couponCode.set('');return false;} removeCoupon(){this.couponCode.set('');} setGiftWrap(e:boolean){this.giftWrap.set(!!e);} clear(){this.items.set([]);this.couponCode.set('');this.giftWrap.set(false);this.persist();}
+  private async loadShippingConfig(){try{const v:any=await this.api.get('/shipping-config');if(v)this.shippingConfig.set({freeShippingThreshold:Math.max(0,Number(v.freeShippingThreshold)||0),prepaidShippingCharge:Math.max(0,Number(v.prepaidShippingCharge)||0),codShippingCharge:Math.max(0,Number(v.codShippingCharge)||0),codMaxOrderAmount:Math.max(0,Number(v.codMaxOrderAmount)||0),codEnabled:v.codEnabled!==false});}catch{}finally{this.shippingConfigLoaded.set(true);if(!this.codAllowed())this.paymentMethod.set('RAZORPAY');}}
+  private persist(){try{localStorage.setItem('wissfind-cart',JSON.stringify(this.items()));}catch{}}
+  private load():CartItem[]{try{const raw=localStorage.getItem('wissfind-cart');if(!raw)return[];const p=JSON.parse(raw);if(!Array.isArray(p))return[];return p.filter(x=>x&&x.product&&x.product.id&&Number(x.quantity)>0).map(x=>({product:x.product as Product,quantity:Math.max(1,Math.floor(Number(x.quantity))),variant:x.variant?x.variant as CartVariant:undefined}));}catch{return[];}}
 }
