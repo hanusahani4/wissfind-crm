@@ -28,22 +28,25 @@ export class ProductVariantDomBridge {
       this.mountedProductId = '';
       return;
     }
+
     const productId = decodeURIComponent(match[1]);
     const main = document.querySelector('main.page') as HTMLElement | null;
     const copy = main?.querySelector('.copy') as HTMLElement | null;
-    if (!main || !copy || this.mountedProductId === productId || copy.dataset['variantViewMounted'] === productId) return;
+    if (!main || !copy) return;
+    if (copy.dataset['variantViewMounted'] === productId) return;
 
-    const old = copy.querySelector('.product-variant-view');
-    old?.remove();
-    const existingOptions = copy.querySelectorAll('.option');
+    copy.querySelector('.product-variant-view')?.remove();
+    copy.querySelectorAll('.option').forEach(x => (x as HTMLElement).style.display = 'none');
+
     const section = document.createElement('section');
     section.className = 'product-variant-view';
     section.dataset['productId'] = productId;
     section.innerHTML = this.template();
+
     const addButton = copy.querySelector('.btn.add');
     if (addButton) copy.insertBefore(section, addButton);
     else copy.appendChild(section);
-    (existingOptions as NodeListOf<HTMLElement>).forEach(x => x.style.display = 'none');
+
     copy.dataset['variantViewMounted'] = productId;
     this.mountedProductId = productId;
     void this.load(productId, section, main);
@@ -52,34 +55,46 @@ export class ProductVariantDomBridge {
   private static template(): string {
     return `<style>
       .product-variant-view{margin:22px 0 16px;padding:16px 0;border-top:1px solid var(--line,#e5e5e5);border-bottom:1px solid var(--line,#e5e5e5)}
-      .pvv-block{margin-bottom:16px}.pvv-block:last-child{margin-bottom:0}.pvv-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:14px}.pvv-selected{font-weight:700;color:#555;font-size:12px}
-      .pvv-swatches{display:flex;flex-wrap:wrap;gap:9px}.pvv-swatch{border:1px solid #d9d9d9;background:#fff;border-radius:9px;padding:9px 13px;cursor:pointer;font:inherit;font-size:13px}.pvv-swatch:hover,.pvv-swatch.active{border-color:#111;box-shadow:0 0 0 1px #111}.pvv-swatch.active{font-weight:800}
-      .pvv-info{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;color:#666;font-size:12px}.pvv-info b{color:#111}.pvv-status{font-size:12px;color:#777;margin-top:10px}.pvv-status.error{color:#b42318}
+      .pvv-block{margin-bottom:17px}.pvv-block:last-child{margin-bottom:0}.pvv-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:14px}.pvv-selected{font-weight:700;color:#555;font-size:12px}
+      .pvv-swatches{display:flex;flex-wrap:wrap;gap:9px}.pvv-swatch{border:1px solid #d9d9d9;background:#fff;color:#111;border-radius:9px;padding:9px 13px;cursor:pointer;font:inherit;font-size:13px;transition:.15s}.pvv-swatch:hover{border-color:#111}.pvv-swatch.active{border-color:#111;box-shadow:0 0 0 1px #111;font-weight:800;background:#f7f7f5}.pvv-swatch:focus-visible{outline:2px solid #111;outline-offset:2px}
+      .pvv-swatch.out{opacity:.55}.pvv-info{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;color:#666;font-size:12px}.pvv-info b{color:#111}.pvv-status{font-size:12px;color:#777;margin-top:10px}.pvv-status.error{color:#b42318}.pvv-stock-note{font-size:11px;color:#777;margin-top:7px}
     </style>
     <div class="pvv-block pvv-color-block"><div class="pvv-title"><strong>Color</strong><span class="pvv-selected pvv-color-selected"></span></div><div class="pvv-swatches pvv-colors"></div></div>
-    <div class="pvv-block pvv-size-block"><div class="pvv-title"><strong>Size</strong><span class="pvv-selected pvv-size-selected"></span></div><div class="pvv-swatches pvv-sizes"></div><div class="pvv-info"><span>SKU: <b class="pvv-sku">—</b></span><span>Stock: <b class="pvv-stock">—</b></span></div></div>
+    <div class="pvv-block pvv-size-block"><div class="pvv-title"><strong>Size</strong><span class="pvv-selected pvv-size-selected">Select size</span></div><div class="pvv-swatches pvv-sizes"></div><div class="pvv-info"><span>SKU: <b class="pvv-sku">—</b></span><span>Stock: <b class="pvv-stock">—</b></span></div><div class="pvv-stock-note">Choose a size to see its price, SKU and available stock.</div></div>
     <div class="pvv-status"></div>`;
   }
 
   private static async load(productId: string, section: HTMLElement, main: HTMLElement): Promise<void> {
     try {
       const data = await this.api(`/products/${encodeURIComponent(productId)}/variants`);
-      const variants: VariantColor[] = Array.isArray(data) ? data.map((v: any) => ({
-        color: String(v.color || '').trim(),
-        images: Array.isArray(v.images) ? v.images.map((x: any) => this.absoluteUrl(String(x || ''))).filter(Boolean) : [],
-        sizes: Array.isArray(v.sizes) ? v.sizes.map((s: any) => ({
-          size: String(s.size || '').trim(), sku: String(s.sku || '').trim(), price: Number(s.price || 0), oldPrice: Number(s.oldPrice || 0), stock: Math.max(0, Number(s.stock || 0))
-        })) : []
-      })).filter(v => v.color) : [];
+      const raw = Array.isArray(data) ? data : (Array.isArray(data?.content) ? data.content : (Array.isArray(data?.variants) ? data.variants : []));
+      const variants: VariantColor[] = raw.map((v: any) => ({
+        color: String(v?.color ?? v?.name ?? '').trim(),
+        images: Array.isArray(v?.images) ? v.images.map((x: any) => this.absoluteUrl(String(x ?? ''))).filter(Boolean) : [],
+        sizes: Array.isArray(v?.sizes) ? v.sizes.map((s: any) => ({
+          size: String(s?.size ?? s?.name ?? '').trim(),
+          sku: String(s?.sku ?? '').trim(),
+          price: Number(s?.price ?? 0),
+          oldPrice: Number(s?.oldPrice ?? s?.mrp ?? 0),
+          stock: Math.max(0, Number(s?.stock ?? 0))
+        })).filter((s: VariantSize) => s.size) : []
+      })).filter((v: VariantColor) => v.color && v.sizes.length);
+
       if (!variants.length) {
         section.remove();
-        main.querySelectorAll('.copy .option').forEach((x: Element) => (x as HTMLElement).style.display = '');
+        main.querySelectorAll('.copy .option').forEach(x => (x as HTMLElement).style.display = '');
         return;
       }
-      this.render(section, main, variants, variants[0], variants[0].sizes[0]);
-    } catch (e: any) {
+
+      const firstColor = variants[0];
+      const firstAvailable = firstColor.sizes.find(s => s.stock > 0) || firstColor.sizes[0];
+      this.render(section, main, variants, firstColor, firstAvailable);
+    } catch {
       const status = section.querySelector('.pvv-status') as HTMLElement | null;
-      if (status) { status.textContent = 'Variants could not be loaded.'; status.classList.add('error'); }
+      if (status) {
+        status.textContent = 'Variants could not be loaded. Please refresh the page.';
+        status.classList.add('error');
+      }
     }
   }
 
@@ -90,31 +105,49 @@ export class ProductVariantDomBridge {
     const sizeText = section.querySelector('.pvv-size-selected') as HTMLElement;
     const sku = section.querySelector('.pvv-sku') as HTMLElement;
     const stock = section.querySelector('.pvv-stock') as HTMLElement;
+    const status = section.querySelector('.pvv-status') as HTMLElement;
+
     colors.innerHTML = '';
     variants.forEach(variant => {
       const button = document.createElement('button');
-      button.type = 'button'; button.className = 'pvv-swatch'; button.textContent = variant.color;
+      button.type = 'button';
+      button.className = 'pvv-swatch';
+      button.textContent = variant.color;
+      button.setAttribute('aria-pressed', String(variant.color.toLowerCase() === selectedColor.color.toLowerCase()));
       if (variant.color.toLowerCase() === selectedColor.color.toLowerCase()) button.classList.add('active');
-      button.addEventListener('click', () => {
-        const nextSize = variant.sizes[0];
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const nextSize = variant.sizes.find(s => s.stock > 0) || variant.sizes[0];
         this.render(section, main, variants, variant, nextSize);
       });
       colors.appendChild(button);
     });
 
     sizes.innerHTML = '';
-    const safeSize = selectedSize || selectedColor.sizes[0];
+    const safeSize = selectedSize && selectedColor.sizes.some(s => s.sku === selectedSize.sku) ? selectedSize : (selectedColor.sizes.find(s => s.stock > 0) || selectedColor.sizes[0]);
     selectedColor.sizes.forEach(size => {
       const button = document.createElement('button');
-      button.type = 'button'; button.className = 'pvv-swatch'; button.textContent = size.size || '—';
-      if (safeSize && size.sku.toLowerCase() === safeSize.sku.toLowerCase()) button.classList.add('active');
-      if (size.stock <= 0) { button.disabled = true; button.title = 'Out of stock'; button.style.opacity = '.45'; }
-      button.addEventListener('click', () => this.render(section, main, variants, selectedColor, size));
+      button.type = 'button';
+      button.className = 'pvv-swatch';
+      button.textContent = size.size;
+      button.setAttribute('aria-label', `Select size ${size.size}`);
+      button.setAttribute('aria-pressed', String(!!safeSize && size.sku === safeSize.sku));
+      if (safeSize && size.sku === safeSize.sku) button.classList.add('active');
+      if (size.stock <= 0) {
+        button.classList.add('out');
+        button.title = 'Out of stock';
+      }
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.render(section, main, variants, selectedColor, size);
+      });
       sizes.appendChild(button);
     });
 
-    colorText.textContent = selectedColor.color;
-    sizeText.textContent = safeSize?.size || 'Select size';
+    colorText.textContent = `Selected: ${selectedColor.color}`;
+    sizeText.textContent = safeSize?.size ? `Selected: ${safeSize.size}` : 'Select size';
     sku.textContent = safeSize?.sku || '—';
     stock.textContent = safeSize ? String(safeSize.stock) : '—';
 
@@ -123,10 +156,17 @@ export class ProductVariantDomBridge {
     if (safeSize) {
       if (price) price.textContent = `₹${safeSize.price.toLocaleString('en-IN')}`;
       if (oldPrice) {
-        if (safeSize.oldPrice > safeSize.price) { oldPrice.textContent = `₹${safeSize.oldPrice.toLocaleString('en-IN')}`; oldPrice.style.display = ''; }
-        else oldPrice.style.display = 'none';
+        if (safeSize.oldPrice > safeSize.price) {
+          oldPrice.textContent = `₹${safeSize.oldPrice.toLocaleString('en-IN')}`;
+          oldPrice.style.display = '';
+        } else {
+          oldPrice.style.display = 'none';
+        }
       }
     }
+
+    status.textContent = safeSize && safeSize.stock <= 0 ? 'This size is currently out of stock.' : '';
+    status.classList.toggle('error', !!safeSize && safeSize.stock <= 0);
     this.setGallery(main, selectedColor.images);
     this.pauseAuto(main);
   }
@@ -138,15 +178,25 @@ export class ProductVariantDomBridge {
     const progress = main.querySelector('.slide-progress') as HTMLElement | null;
     const count = main.querySelector('.image-count') as HTMLElement | null;
     if (!thumbs || !mainImage) return;
+
     thumbs.innerHTML = '';
     images.forEach((image, index) => {
       const button = document.createElement('button');
-      button.type = 'button'; button.className = `thumb${index === 0 ? ' active' : ''}`; button.title = `View image ${index + 1}`;
-      const img = document.createElement('img'); img.src = image; img.alt = `Product variant image ${index + 1}`;
+      button.type = 'button';
+      button.className = `thumb${index === 0 ? ' active' : ''}`;
+      button.title = `View image ${index + 1}`;
+      const img = document.createElement('img');
+      img.src = image;
+      img.alt = `Product variant image ${index + 1}`;
       button.appendChild(img);
-      button.addEventListener('click', () => this.selectGalleryImage(main, images, index));
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.selectGalleryImage(main, images, index);
+      });
       thumbs.appendChild(button);
     });
+
     if (progress) progress.innerHTML = images.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('');
     this.selectGalleryImage(main, images, 0);
     if (count) count.textContent = `1 / ${images.length}`;
@@ -172,7 +222,7 @@ export class ProductVariantDomBridge {
 
   private static async api(path: string): Promise<any> {
     const token = localStorage.getItem('wissfind_jwt');
-    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const response = await fetch(`${this.baseUrl()}${path}`, { headers });
     if (!response.ok) throw new Error(`Request failed (${response.status})`);
     return response.json();
@@ -185,6 +235,7 @@ export class ProductVariantDomBridge {
   private static absoluteUrl(url: string): string {
     if (!url) return '';
     if (/^https?:\/\//i.test(url)) return url;
-    return `http://localhost:8080${url.startsWith('/') ? '' : '/'}${url}`;
+    if (url.startsWith('/')) return `${this.baseUrl().replace(/\/api$/, '')}${url}`;
+    return `${this.baseUrl().replace(/\/api$/, '')}/${url}`;
   }
 }
