@@ -3,6 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, fromEvent, Observable } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { SellerVariantDomBridge } from './seller-variant-dom-bridge';
+import { ProductVariantDomBridge } from './product-variant-dom-bridge';
 
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
@@ -15,6 +16,7 @@ export class BackendApiService {
 
   constructor() {
     SellerVariantDomBridge.install();
+    ProductVariantDomBridge.install();
   }
 
   private authHeaders(): HttpHeaders {
