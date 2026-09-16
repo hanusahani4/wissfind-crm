@@ -9,6 +9,7 @@ import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.service.CloudinaryImageService;
 import com.wissfind.marketplace.service.CurrentUser;
+import jakarta.persistence.EntityManager;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +28,16 @@ public class ProductVariantController {
     private final ProductColorVariantRepository colors;
     private final UserRepository users;
     private final CloudinaryImageService cloudinary;
+    private final EntityManager entityManager;
 
     public ProductVariantController(ProductRepository products, ProductColorVariantRepository colors,
-                                    UserRepository users, CloudinaryImageService cloudinary) {
+                                    UserRepository users, CloudinaryImageService cloudinary,
+                                    EntityManager entityManager) {
         this.products = products;
         this.colors = colors;
         this.users = users;
         this.cloudinary = cloudinary;
+        this.entityManager = entityManager;
     }
 
     @GetMapping("/{productId}/variants")
@@ -51,15 +55,31 @@ public class ProductVariantController {
         if (requests == null) requests = List.of();
 
         Map<String, ColorVariantRequest> uniqueColors = new LinkedHashMap<>();
+        Set<String> uniqueSkus = new HashSet<>();
         for (ColorVariantRequest request : requests) {
             if (request == null || request.color == null || request.color.isBlank()) continue;
             String color = request.color.trim();
             if (uniqueColors.putIfAbsent(color.toLowerCase(Locale.ROOT), request) != null) {
                 throw new IllegalArgumentException("Duplicate color variant: " + color);
             }
+            if (request.sizes != null) {
+                for (SizeVariantRequest sizeRequest : request.sizes) {
+                    if (sizeRequest == null || sizeRequest.sku == null || sizeRequest.sku.isBlank()) continue;
+                    String sku = sizeRequest.sku.trim().toLowerCase(Locale.ROOT);
+                    if (!uniqueSkus.add(sku)) {
+                        throw new IllegalArgumentException("Duplicate SKU: " + sizeRequest.sku.trim());
+                    }
+                }
+            }
         }
 
+        // This PUT is the variant UPDATE operation. Delete the previous graph first
+        // and force Hibernate to execute the DELETE before inserting replacement rows.
         colors.deleteByProductId(productId);
+        entityManager.flush();
+        entityManager.clear();
+
+        product = products.findById(productId).orElseThrow();
         List<ProductColorVariant> saved = new ArrayList<>();
         int totalStock = 0;
         double minPrice = Double.MAX_VALUE;
@@ -116,6 +136,7 @@ public class ProductVariantController {
             product.oldPrice = minOldPrice == Double.MAX_VALUE ? 0 : minOldPrice;
         }
         products.save(product);
+        entityManager.flush();
         return saved.stream().map(this::response).toList();
     }
 
@@ -144,8 +165,8 @@ public class ProductVariantController {
     }
 
     @DeleteMapping("/{productId}/variants/{colorVariantId}/images")
-    @PreAuthorize("hasRole('SELLER')")
     @Transactional
+    @PreAuthorize("hasRole('SELLER')")
     public ColorVariantResponse removeImage(@PathVariable Long productId,
                                              @PathVariable Long colorVariantId,
                                              @RequestParam String url) {
