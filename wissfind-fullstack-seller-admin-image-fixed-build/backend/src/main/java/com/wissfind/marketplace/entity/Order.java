@@ -37,6 +37,9 @@ public class Order extends BaseEntity {
     public String cancellationNote;
     public LocalDateTime cancelledAt;
 
+    /** Prevents duplicate Telegram delivery of the same order notification. */
+    public boolean telegramNotificationSent = false;
+
     /** Product snapshots belonging to this order. */
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("id ASC")

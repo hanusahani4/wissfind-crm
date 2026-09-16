@@ -6,37 +6,59 @@ export interface ProductReview {
   date:string; likes:number; likedByMe?:boolean;
 }
 
+export interface ReviewEligibility {
+  canReview:boolean; purchased:boolean; alreadyReviewed:boolean;
+}
+
 @Injectable({providedIn:'root'})
 export class ReviewService {
   private likes=new Set<string>();
+  private eligibilityStyle?:HTMLStyleElement;
 
   constructor(private api:BackendApiService, private appRef:ApplicationRef){}
 
   async getReviews(productId:string, signal?:AbortSignal):Promise<ProductReview[]> {
+    this.hideReviewFormUntilEligibilityKnown();
+    let result:ProductReview[]=[];
     try {
       const rows:any[]=await this.api.get(`/reviews/product/${productId}`, signal);
-      const result = rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),
-        date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
+      result=rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
+    } catch {}
+    await this.getEligibility(productId,signal);
+    setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
+    return result;
+  }
 
-      // This app uses Angular's zoneless change detection. The component that
-      // awaits this method assigns the returned review list in the next
-      // microtask, so the refresh must happen one macrotask later. Otherwise
-      // the reviews/rating can appear only after the user clicks a star or
-      // otherwise interacts with the page.
-      setTimeout(() => {
-        try { this.appRef.tick(); } catch { /* keep the review request successful */ }
-      }, 0);
-
-      return result;
+  async getEligibility(productId:string, signal?:AbortSignal):Promise<ReviewEligibility> {
+    try {
+      const result:any=await this.api.get(`/reviews/product/${productId}/eligibility`, signal);
+      const eligibility:ReviewEligibility={canReview:!!result?.canReview,purchased:!!result?.purchased,alreadyReviewed:!!result?.alreadyReviewed};
+      this.applyEligibilityToForm(eligibility);
+      return eligibility;
     } catch {
-      return [];
+      const eligibility:ReviewEligibility={canReview:false,purchased:false,alreadyReviewed:false};
+      this.applyEligibilityToForm(eligibility);
+      return eligibility;
     }
   }
 
+  private hideReviewFormUntilEligibilityKnown(){
+    if(typeof document==='undefined'||this.eligibilityStyle) return;
+    this.eligibilityStyle=document.createElement('style');
+    document.head.appendChild(this.eligibilityStyle);
+    this.eligibilityStyle.textContent='.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}@media(max-width:700px){.review-layout{grid-template-columns:1fr!important}.write-review{position:static!important}}';
+  }
+
+  private applyEligibilityToForm(eligibility:ReviewEligibility){
+    if(typeof document==='undefined'||!this.eligibilityStyle) return;
+    const mobile='@media(max-width:700px){.review-layout{grid-template-columns:1fr!important}.write-review{position:static!important}}';
+    this.eligibilityStyle.textContent=eligibility.canReview
+      ? `.review-layout{grid-template-columns:minmax(0,1.5fr) minmax(300px,.7fr)}${mobile}`
+      : `.write-review{display:none!important}.review-layout{grid-template-columns:minmax(0,1fr)!important}${mobile}`;
+  }
+
   async addReview(review:Omit<ProductReview,'id'|'date'|'likes'>) {
-    const r:any=await this.api.post(`/reviews/product/${review.productId}`,{
-      rating:review.rating,title:review.title,text:review.text
-    });
+    const r:any=await this.api.post(`/reviews/product/${review.productId}`,{rating:review.rating,title:review.title,text:review.text});
     return r.review;
   }
 
@@ -47,9 +69,6 @@ export class ReviewService {
   }
 
   isReviewLiked(reviewId:string){return this.likes.has(reviewId);}
-
-  // These are intentionally synchronous because the product-detail template
-  // renders them directly. Returning a Promise here displayed "[object Promise]".
   getProductLikeCount(_productId:string){return 0;}
   isProductLiked(_productId:string){return false;}
   toggleProductLike(_productId:string){return false;}

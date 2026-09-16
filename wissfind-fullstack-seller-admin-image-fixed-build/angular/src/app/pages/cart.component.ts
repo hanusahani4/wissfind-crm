@@ -65,10 +65,11 @@ import { CartService } from '../core/cart.service';
           <div class="benefit card">
             <div class="benefit-icon">✓</div>
             <div>
-              <strong *ngIf="cart.shippingCost() === 0">Free shipping unlocked</strong>
-              <strong *ngIf="cart.shippingCost() > 0">Free shipping on orders ₹5,000+</strong>
-              <p class="muted" *ngIf="cart.shippingCost() > 0">
-                Add ₹{{ (5000 - (cart.subtotal() - cart.couponDiscount())) | number }} more to unlock free shipping.
+              <strong *ngIf="cart.shippingCost() === 0 && freeShippingThreshold > 0">Free shipping unlocked</strong>
+              <strong *ngIf="cart.shippingCost() > 0 && freeShippingThreshold > 0">Free shipping on orders ₹{{ freeShippingThreshold | number }}+</strong>
+              <strong *ngIf="freeShippingThreshold === 0">Free shipping on all orders</strong>
+              <p class="muted" *ngIf="cart.shippingCost() > 0 && freeShippingThreshold > 0">
+                Add ₹{{ amountToFreeShipping | number }} more to unlock free shipping.
               </p>
               <p class="muted" *ngIf="cart.shippingCost() === 0">Your order qualifies for free delivery.</p>
             </div>
@@ -236,6 +237,8 @@ export class CartComponent {
   page = 1;
   get totalPages(): number { return Math.max(1, Math.ceil(this.cart.cart().length / this.pageSize)); }
   get visibleItems() { const max=Math.max(1,this.totalPages); if(this.page>max)this.page=max; const start=(this.page-1)*this.pageSize; return this.cart.cart().slice(start,start+this.pageSize); }
+  get freeShippingThreshold(): number { return Math.max(0, Number(this.cart.shippingConfig().freeShippingThreshold) || 0); }
+  get amountToFreeShipping(): number { return Math.max(0, this.freeShippingThreshold - (this.cart.subtotal() - this.cart.couponDiscount())); }
   prevPage(){ if(this.page>1)this.page--; }
   nextPage(){ if(this.page<this.totalPages)this.page++; }
   readonly cart = inject(CartService);

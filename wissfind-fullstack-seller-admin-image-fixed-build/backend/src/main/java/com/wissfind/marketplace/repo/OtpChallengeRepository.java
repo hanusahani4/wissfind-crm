@@ -14,4 +14,6 @@ public interface OtpChallengeRepository extends JpaRepository<OtpChallenge, Long
             String phone, String purpose, Instant now);
 
     Optional<OtpChallenge> findTopByPhoneAndPurposeOrderByCreatedAtDesc(String phone, String purpose);
+
+    long countByPhoneAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(String phone, Instant start, Instant end);
 }

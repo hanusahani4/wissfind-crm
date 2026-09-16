@@ -7,7 +7,10 @@ import { takeUntil } from 'rxjs/operators';
 export class BackendApiService {
   private readonly http = inject(HttpClient);
   private readonly appRef = inject(ApplicationRef);
-  readonly baseUrl = 'http://localhost:8080/api';
+  readonly baseUrl =
+    typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '4200'
+      ? 'http://localhost:8080/api'
+      : '/api';
 
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('wissfind_jwt');

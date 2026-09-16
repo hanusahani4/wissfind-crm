@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,6 +23,7 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final String SIGNUP = "SIGNUP";
     private static final String RESET = "RESET";
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final UserRepository users;
     private final OtpChallengeRepository otps;
@@ -29,13 +32,16 @@ public class AuthService {
     private final TwoFactorOtpService twoFactor;
     private final long ttlMinutes;
     private final long resendCooldownSeconds;
+    private final long dailyOtpLimit;
 
     public AuthService(UserRepository u, OtpChallengeRepository o, PasswordEncoder e, JwtService j,
                        TwoFactorOtpService twoFactor,
                        @Value("${app.otp.ttl-minutes:10}") long ttlMinutes,
-                       @Value("${app.otp.resend-cooldown-seconds:60}") long resendCooldownSeconds) {
+                       @Value("${app.otp.resend-cooldown-seconds:60}") long resendCooldownSeconds,
+                       @Value("${app.otp.daily-limit:444}") long dailyOtpLimit) {
         this.users=u; this.otps=o; this.encoder=e; this.jwt=j; this.twoFactor=twoFactor;
         this.ttlMinutes=ttlMinutes; this.resendCooldownSeconds=resendCooldownSeconds;
+        this.dailyOtpLimit=Math.max(1,dailyOtpLimit);
     }
 
     public Map<String,Object> sendOtp(String phone,String purpose) {
@@ -48,6 +54,14 @@ public class AuthService {
         if(RESET.equals(normalizedPurpose)&&users.findByPhone(p).isEmpty()) return Map.of("sent",false,"message","If the account exists, a verification code has been sent.");
 
         Instant now=Instant.now();
+        LocalDate today=now.atZone(BUSINESS_ZONE).toLocalDate();
+        Instant dayStart=today.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant dayEnd=today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        long sentToday=otps.countByPhoneAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(p,dayStart,dayEnd);
+        if(sentToday>=dailyOtpLimit) {
+            throw new IllegalArgumentException("Daily OTP limit reached. Please try again tomorrow.");
+        }
+
         OtpChallenge latest=otps.findTopByPhoneAndPurposeOrderByCreatedAtDesc(p,normalizedPurpose).orElse(null);
         if(latest!=null&&latest.createdAt!=null&&latest.createdAt.plusSeconds(resendCooldownSeconds).isAfter(now)) {
             long remaining=Math.max(1,Duration.between(now,latest.createdAt.plusSeconds(resendCooldownSeconds)).toSeconds());
@@ -83,6 +97,8 @@ public class AuthService {
         out.put("purpose",normalizedPurpose);
         out.put("expiresInSeconds",ttlMinutes*60);
         out.put("resendAfterSeconds",resendCooldownSeconds);
+        out.put("dailyLimit",dailyOtpLimit);
+        out.put("sentToday",sentToday+1);
         out.put("sessionPresent",true);
         return out;
     }
@@ -148,12 +164,9 @@ public class AuthService {
     public static String norm(String p){
         if(p==null) throw new IllegalArgumentException("Phone number is required");
         String s=p.trim().replaceAll("\\D","");
-
-        // Accept 0XXXXXXXXXX, 91XXXXXXXXXX, +91XXXXXXXXXX and XXXXXXXXXX.
         if(s.startsWith("0") && s.length()==11) s=s.substring(1);
         if(s.startsWith("91") && s.length()==12) s=s.substring(2);
         if(s.length()==10) return "+91"+s;
-
         throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number");
     }
 }

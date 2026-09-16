@@ -24,7 +24,11 @@ public class SecurityConfig {
         return http.csrf(c -> c.disable())
                 .cors(c -> c.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOrigins(List.of("http://localhost:4200"));
+                    config.setAllowedOrigins(List.of(
+                            "http://localhost:4200",
+                            "https://wissfind.com",
+                            "https://www.wissfind.com"
+                    ));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
                     config.setAllowCredentials(true);
