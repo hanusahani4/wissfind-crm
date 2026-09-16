@@ -19,6 +19,7 @@ export const routes: Routes = [
   { path: 'admin/homepage', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/homepage-management.component').then(m => m.HomepageManagementComponent) },
   { path: 'admin/shipping', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/shipping-management.component').then(m => m.ShippingManagementComponent) },
   { path: 'seller/register', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/seller-register.component').then(m => m.SellerRegisterComponent) },
+  { path: 'seller/variant-products', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller-variant-products.component').then(m => m.SellerVariantProductsComponent) },
   { path: 'seller', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller.component').then(m => m.SellerComponent) },
   { path: '**', redirectTo: '' }
 ];
