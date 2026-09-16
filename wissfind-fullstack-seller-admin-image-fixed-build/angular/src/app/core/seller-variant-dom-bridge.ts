@@ -184,6 +184,7 @@ export class SellerVariantDomBridge {
   private static imageItem(parent: HTMLElement, image: string, removable: boolean): void {
     const item = document.createElement('div');
     item.className = 'sv-image';
+    item.dataset['image'] = image;
     item.innerHTML = `<img src="${this.escapeAttr(image)}">${removable ? '<button type="button" class="sv-remove-image">×</button>' : ''}`;
     parent.appendChild(item);
   }
@@ -191,7 +192,7 @@ export class SellerVariantDomBridge {
   private static readVariants(list: HTMLElement): VariantColor[] {
     return Array.from(list.querySelectorAll('.sv-color')).map(card => ({
       color: (card.querySelector('.sv-color-name') as HTMLInputElement)?.value.trim() || '',
-      images: Array.from(card.querySelectorAll('.sv-existing-images img')).map(x => (x as HTMLImageElement).src),
+      images: Array.from(card.querySelectorAll('.sv-existing-images .sv-image')).map(x => String((x as HTMLElement).dataset['image'] || '')),
       sizes: Array.from(card.querySelectorAll('.sv-size')).map(row => ({
         size: (row.querySelector('.sv-size-name') as HTMLInputElement)?.value.trim() || '',
         sku: (row.querySelector('.sv-size-sku') as HTMLInputElement)?.value.trim() || '',
