@@ -60,7 +60,7 @@ export class ProductVariantDomBridge {
       .pvv-swatch.out{opacity:.55}.pvv-info{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;color:#666;font-size:12px}.pvv-info b{color:#111}.pvv-status{font-size:12px;color:#777;margin-top:10px}.pvv-status.error{color:#b42318}.pvv-stock-note{font-size:11px;color:#777;margin-top:7px}
     </style>
     <div class="pvv-block pvv-color-block"><div class="pvv-title"><strong>Color</strong><span class="pvv-selected pvv-color-selected"></span></div><div class="pvv-swatches pvv-colors"></div></div>
-    <div class="pvv-block pvv-size-block"><div class="pvv-title"><strong>Size</strong><span class="pvv-selected pvv-size-selected">Select size</span></div><div class="pvv-swatches pvv-sizes"></div><div class="pvv-info"><span>SKU: <b class="pvv-sku">—</b></span><span>Stock: <b class="pvv-stock">—</b></span></div><div class="pvv-stock-note">Choose a size to see its price, SKU and available stock.</div></div>
+    <div class="pvv-block pvv-size-block"><div class="pvv-title"><strong>Size</strong><span class="pvv-selected pvv-size-selected">Select size</span></div><div class="pvv-swatches pvv-sizes"></div><div class="pvv-info"><span>SKU: <b class="pvv-sku">—</b></span><span>Stock: <b class="pvv-stock">—</b></span></div><div class="pvv-stock-note">Choose a size to see its price, MRP, SKU and available stock.</div></div>
     <div class="pvv-status"></div>`;
   }
 
@@ -151,24 +151,38 @@ export class ProductVariantDomBridge {
     sku.textContent = safeSize?.sku || '—';
     stock.textContent = safeSize ? String(safeSize.stock) : '—';
 
-    const price = main.querySelector('.price strong') as HTMLElement | null;
-    const oldPrice = main.querySelector('.price del') as HTMLElement | null;
-    if (safeSize) {
-      if (price) price.textContent = `₹${safeSize.price.toLocaleString('en-IN')}`;
-      if (oldPrice) {
-        if (safeSize.oldPrice > safeSize.price) {
-          oldPrice.textContent = `₹${safeSize.oldPrice.toLocaleString('en-IN')}`;
-          oldPrice.style.display = '';
-        } else {
-          oldPrice.style.display = 'none';
-        }
-      }
-    }
-
+    this.updatePrice(main, safeSize);
     status.textContent = safeSize && safeSize.stock <= 0 ? 'This size is currently out of stock.' : '';
     status.classList.toggle('error', !!safeSize && safeSize.stock <= 0);
     this.setGallery(main, selectedColor.images);
     this.pauseAuto(main);
+  }
+
+  private static updatePrice(main: HTMLElement, size?: VariantSize): void {
+    const priceRow = main.querySelector('.price') as HTMLElement | null;
+    if (!priceRow || !size) return;
+
+    let price = priceRow.querySelector('strong') as HTMLElement | null;
+    let oldPrice = priceRow.querySelector('del') as HTMLElement | null;
+
+    if (!price) {
+      price = document.createElement('strong');
+      priceRow.prepend(price);
+    }
+
+    if (!oldPrice) {
+      oldPrice = document.createElement('del');
+      priceRow.appendChild(oldPrice);
+    }
+
+    price.textContent = `₹${size.price.toLocaleString('en-IN')}`;
+    if (size.oldPrice > size.price) {
+      oldPrice.textContent = `₹${size.oldPrice.toLocaleString('en-IN')}`;
+      oldPrice.style.display = '';
+    } else {
+      oldPrice.textContent = '';
+      oldPrice.style.display = 'none';
+    }
   }
 
   private static setGallery(main: HTMLElement, images: string[]): void {
