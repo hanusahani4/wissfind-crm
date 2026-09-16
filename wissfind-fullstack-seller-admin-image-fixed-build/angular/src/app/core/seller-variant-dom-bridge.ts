@@ -155,7 +155,10 @@ export class SellerVariantDomBridge {
       }
     });
 
-    void this.resolveProductId(form).then(id => id && this.loadInto(list, id).catch(() => undefined));
+    void this.resolveProductId(form).then(id => {
+      if (!id) return;
+      return this.loadInto(list, id);
+    }).catch(() => undefined);
   }
 
   private static colorCard(color: VariantColor = { color: '', images: [], sizes: [{ size: '', sku: '', price: 0, oldPrice: 0, stock: 0 }] }): HTMLElement {
@@ -239,7 +242,7 @@ export class SellerVariantDomBridge {
   private static async api(path: string, method: string, body?: any, multipart = false): Promise<any> {
     const headers: Record<string, string> = {};
     const token = localStorage.getItem('wissfind_jwt');
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const response = await fetch(`${this.baseUrl()}${path}`, {
       method,
       headers: multipart ? headers : { ...headers, 'Content-Type': 'application/json' },
@@ -256,6 +259,6 @@ export class SellerVariantDomBridge {
     return typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '4200' ? 'http://localhost:8080/api' : '/api';
   }
 
-  private static escape(value: string): string { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  private static escape(value: string): string { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;'); }
   private static escapeAttr(value: string): string { return this.escape(value).replace(/'/g, '&#39;'); }
 }
