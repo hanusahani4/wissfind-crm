@@ -2,7 +2,7 @@ import { Injectable, ApplicationRef } from '@angular/core';
 import { BackendApiService } from './backend-api.service';
 
 export interface ProductReview {
-  id:string; productId:string; author:string; rating:number; title:string; text:string;
+  id:any; productId:string; author:string; rating:number; title:string; text:string;
   date:string; likes:number; likedByMe?:boolean;
 }
 
