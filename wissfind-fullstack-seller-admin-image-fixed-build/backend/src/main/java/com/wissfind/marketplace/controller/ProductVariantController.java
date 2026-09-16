@@ -73,8 +73,6 @@ public class ProductVariantController {
             }
         }
 
-        // This PUT is the variant UPDATE operation. Delete the previous graph first
-        // and force Hibernate to execute the DELETE before inserting replacement rows.
         colors.deleteByProductId(productId);
         entityManager.flush();
         entityManager.clear();
@@ -134,6 +132,7 @@ public class ProductVariantController {
             product.stock = totalStock;
             product.price = minPrice == Double.MAX_VALUE ? product.price : minPrice;
             product.oldPrice = minOldPrice == Double.MAX_VALUE ? 0 : minOldPrice;
+            product.status = totalStock > 0 ? Product.Status.LIVE : Product.Status.OUT_OF_STOCK;
         }
         products.save(product);
         entityManager.flush();
