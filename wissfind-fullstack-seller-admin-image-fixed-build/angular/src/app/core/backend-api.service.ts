@@ -6,6 +6,7 @@ import { SellerVariantDomBridge } from './seller-variant-dom-bridge';
 import { ProductVariantDomBridge } from './product-variant-dom-bridge';
 import { SellerVariantHelpBridge } from './seller-variant-help-bridge';
 import { VariantUxBridge } from './variant-ux-bridge';
+import { HomeVariantCardBridge } from './home-variant-card-bridge';
 
 @Injectable({ providedIn: 'root' })
 export class BackendApiService {
@@ -21,81 +22,30 @@ export class BackendApiService {
     ProductVariantDomBridge.install();
     SellerVariantHelpBridge.install();
     VariantUxBridge.install();
+    HomeVariantCardBridge.install();
   }
 
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('wissfind_jwt');
-    return token
-      ? new HttpHeaders({ Authorization: `Bearer ${token}` })
-      : new HttpHeaders();
+    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
   }
 
   private refreshView(): void {
-    setTimeout(() => {
-      try {
-        this.appRef.tick();
-      } catch {
-        // Never turn a successful API response into an application error just
-        // because a manual view refresh was not possible.
-      }
-    }, 0);
+    setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
   }
 
   private request<T>(source: Observable<T>, signal?: AbortSignal): Promise<T> {
-    if (!signal) {
-      return firstValueFrom(source).then(
-        value => {
-          this.refreshView();
-          return value;
-        },
-        error => {
-          this.refreshView();
-          throw error;
-        }
-      );
-    }
-
-    if (signal.aborted) {
-      this.refreshView();
-      return Promise.reject(new DOMException('Request aborted', 'AbortError'));
-    }
-
-    return firstValueFrom(source.pipe(takeUntil(fromEvent(signal, 'abort')))).then(
-      value => {
-        this.refreshView();
-        return value;
-      },
-      error => {
-        this.refreshView();
-        throw error;
-      }
-    );
+    if (!signal) return firstValueFrom(source).then(v => { this.refreshView(); return v; }, e => { this.refreshView(); throw e; });
+    if (signal.aborted) { this.refreshView(); return Promise.reject(new DOMException('Request aborted', 'AbortError')); }
+    return firstValueFrom(source.pipe(takeUntil(fromEvent(signal, 'abort')))).then(v => { this.refreshView(); return v; }, e => { this.refreshView(); throw e; });
   }
 
-  get<T>(path: string, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.get<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal);
-  }
-
-  post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal);
-  }
-
-  put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.put<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal);
-  }
-
-  patch<T>(path: string, body: unknown = {}, params?: Record<string, string | number>, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.patch<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders(), params }), signal);
-  }
-
-  delete<T = void>(path: string, signal?: AbortSignal): Promise<T> {
-    return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal);
-  }
-
-  getBlob(path: string, signal?: AbortSignal): Promise<Blob> {
-    return this.request(this.http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders(), responseType: 'blob' }), signal);
-  }
-
+  get<T>(path: string, signal?: AbortSignal): Promise<T> { return this.request(this.http.get<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal); }
+  post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> { return this.request(this.http.post<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal); }
+  put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> { return this.request(this.http.put<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders() }), signal); }
+  patch<T>(path: string, body: unknown = {}, params?: Record<string, string | number>, signal?: AbortSignal): Promise<T> { return this.request(this.http.patch<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders(), params }), signal); }
+  delete<T = void>(path: string, signal?: AbortSignal): Promise<T> { return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal); }
+  getBlob(path: string, signal?: AbortSignal): Promise<Blob> { return this.request(this.http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders(), responseType: 'blob' }), signal); }
   upload<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
     let headers = this.authHeaders();
     headers = headers.delete('Content-Type');
