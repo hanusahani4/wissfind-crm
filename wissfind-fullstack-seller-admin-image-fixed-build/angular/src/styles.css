@@ -71,7 +71,6 @@ h2 { font-size: 30px; }
   .header .actions { order: 2; margin-left: auto; }
 }
 
-/* Reviews must stack on phones so the composer can never cover customer comments. */
 @media (max-width: 700px) {
   .review-layout { grid-template-columns: 1fr !important; }
   .write-review { position: static !important; width: 100%; }
@@ -99,4 +98,31 @@ h2 { font-size: 30px; }
   .header .actions { max-width: calc(100% - 115px); }
   .header .icon-btn { padding: 8px 10px; font-size: 12px; }
   .header .links { gap: 14px; font-size: 13px; }
+}
+
+/* Product-detail related products: force a full-width responsive grid so cards never collapse into a narrow strip. */
+.related-products-section,
+.related-products-section .related-grid { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+.related-products-section .related-grid { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 18px !important; }
+.related-products-section .related-card { display: block !important; width: 100% !important; min-width: 0 !important; max-width: none !important; overflow: hidden; }
+.related-products-section .related-image { width: 100% !important; height: 285px !important; aspect-ratio: 1 / 1; overflow: hidden !important; }
+.related-products-section .related-image img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; }
+.related-products-section .related-card h3 { overflow-wrap: anywhere; }
+
+@media (max-width: 1000px) {
+  .related-products-section .related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+@media (max-width: 600px) {
+  .related-products-section { margin-top: 56px !important; padding-top: 30px !important; }
+  .related-products-section .related-heading { width: 100% !important; }
+  .related-products-section .related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 24px 12px !important; }
+  .related-products-section .related-card { width: 100% !important; }
+  .related-products-section .related-image { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1 !important; border-radius: 14px !important; }
+  .related-products-section .related-like { width: 32px !important; height: 32px !important; right: 8px !important; top: 8px !important; }
+  .related-products-section .sale-badge { top: 8px !important; left: 8px !important; padding: 6px 8px !important; }
+  .related-products-section .related-meta { margin-top: 9px !important; font-size: 9px !important; gap: 5px !important; }
+  .related-products-section .related-card h3 { font-size: 14px !important; line-height: 1.2 !important; margin: 7px 0 6px !important; }
+  .related-products-section .related-price strong { font-size: 14px !important; }
+  .related-products-section .related-price del { font-size: 10px !important; }
 }
