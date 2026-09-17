@@ -64,7 +64,14 @@ export class HomeVariantCardBridge {
       cards.forEach(card=>{
         if(card.dataset['variantCardDecorated']==='1')return;
         const link=card.querySelector('.image-wrap') as HTMLAnchorElement|null;
-        if(link)this.cardObserver?.observe(card);
+        if(link){
+          // Do not flash the parent image before the variant request resolves.
+          // The card keeps its layout while the image is temporarily hidden.
+          card.dataset['variantPending']='1';
+          const image=link.querySelector('img') as HTMLImageElement|null;
+          if(image)image.style.visibility='hidden';
+          this.cardObserver?.observe(card);
+        }
       });
       return;
     }
@@ -74,21 +81,29 @@ export class HomeVariantCardBridge {
       const image=link?.querySelector('img') as HTMLImageElement|null;
       const productId=link?this.productIdFromHref(link.href):'';
       if(productId&&image&&!this.pending.has(productId)&&card.dataset['variantCardDecorated']!=='1'){
+        card.dataset['variantPending']='1';
+        image.style.visibility='hidden';
         this.pending.add(productId);void this.applyVariant(card,productId).finally(()=>this.pending.delete(productId));
       }
     });
   }
 
+  private static revealImage(card:HTMLElement){
+    const image=card.querySelector('.image-wrap img') as HTMLImageElement|null;
+    if(image)image.style.visibility='';
+    delete card.dataset['variantPending'];
+  }
+
   private static async applyVariant(card:HTMLElement,productId:string){
     try{
       const variants=await this.getVariants(productId);
-      if(!variants.length){card.dataset['variantCardDecorated']='1';return;}
+      if(!variants.length){card.dataset['variantCardDecorated']='1';this.revealImage(card);return;}
       const normalized=variants.map((v:any)=>({color:String(v?.color??v?.name??'').trim(),images:Array.isArray(v?.images)?v.images.map((x:any)=>String(x??'')).filter(Boolean):[],sizes:Array.isArray(v?.sizes)?v.sizes.map((s:any)=>({size:String(s?.size??s?.name??'').trim(),sku:String(s?.sku??'').trim(),price:Number(s?.price??0),oldPrice:Number(s?.oldPrice??s?.mrp??0),stock:Math.max(0,Number(s?.stock??0))})).filter((s:any)=>s.size):[]})).filter((v:any)=>v.color&&v.sizes.length);
-      if(!normalized.length){card.dataset['variantCardDecorated']='1';return;}
+      if(!normalized.length){card.dataset['variantCardDecorated']='1';this.revealImage(card);return;}
       const selected=normalized.find((v:any)=>this.hasAvailableStock(v));
-      if(!selected){card.dataset['variantCardDecorated']='1';return;}
+      if(!selected){card.dataset['variantCardDecorated']='1';this.revealImage(card);return;}
       const selectedSize=selected.sizes.find((s:any)=>s.stock>0);
-      if(!selectedSize){card.dataset['variantCardDecorated']='1';return;}
+      if(!selectedSize){card.dataset['variantCardDecorated']='1';this.revealImage(card);return;}
       const totalStock=normalized.reduce((a:number,v:any)=>a+v.sizes.reduce((b:number,s:any)=>b+Math.max(0,Number(s.stock||0)),0),0);
       card.dataset['variantTotalStock']=String(totalStock);
       const image=card.querySelector('.image-wrap img') as HTMLImageElement|null;
@@ -105,7 +120,8 @@ export class HomeVariantCardBridge {
       const add=card.querySelector('.add-cart') as HTMLButtonElement|null;
       if(add){add.disabled=totalStock<=0;add.textContent=totalStock>0?'Add to cart':'Out of stock';add.dataset['variantProductId']=productId;add.dataset['variantColor']=selected.color;add.dataset['variantSize']=selectedSize.size;add.dataset['variantSku']=selectedSize.sku;add.dataset['variantPrice']=String(selectedSize.price);add.dataset['variantOldPrice']=String(selectedSize.oldPrice);add.dataset['variantStock']=String(selectedSize.stock);add.dataset['variantImage']=this.absoluteUrl(selected.images[0]||'');}
       card.dataset['variantCardDecorated']='1';
-    }catch{card.dataset['variantCardDecorated']='1';}
+      this.revealImage(card);
+    }catch{card.dataset['variantCardDecorated']='1';this.revealImage(card);}
   }
 
   private static hasAvailableStock(v:any){return Array.isArray(v?.sizes)&&v.sizes.some((s:any)=>Number(s?.stock??0)>0)}
