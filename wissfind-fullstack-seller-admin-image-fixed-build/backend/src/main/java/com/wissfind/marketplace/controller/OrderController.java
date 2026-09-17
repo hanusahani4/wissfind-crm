@@ -5,8 +5,11 @@ import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.OrderItem;
 import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.entity.ShippingSettings;
+import com.wissfind.marketplace.entity.ProductColorVariant;
+import com.wissfind.marketplace.entity.ProductSizeVariant;
 import com.wissfind.marketplace.repo.OrderRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
+import com.wissfind.marketplace.repo.ProductColorVariantRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.repo.CustomerAddressRepository;
 import com.wissfind.marketplace.repo.ShippingSettingsRepository;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -26,14 +30,19 @@ public class OrderController {
     private final OrderRepository repo;
     private final UserRepository users;
     private final ProductRepository products;
+    private final ProductColorVariantRepository colorVariants;
     private final com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests;
     private final CustomerAddressRepository addresses;
     private final ShippingSettingsRepository shippingSettingsRepo;
 
-    public OrderController(OrderRepository repo, UserRepository users, ProductRepository products, com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests, CustomerAddressRepository addresses, ShippingSettingsRepository shippingSettingsRepo) {
+    public OrderController(OrderRepository repo, UserRepository users, ProductRepository products,
+                           ProductColorVariantRepository colorVariants,
+                           com.wissfind.marketplace.repo.ReturnRequestRepository returnRequests,
+                           CustomerAddressRepository addresses, ShippingSettingsRepository shippingSettingsRepo) {
         this.repo = repo;
         this.users = users;
         this.products = products;
+        this.colorVariants = colorVariants;
         this.returnRequests = returnRequests;
         this.addresses = addresses;
         this.shippingSettingsRepo = shippingSettingsRepo;
@@ -126,12 +135,7 @@ public class OrderController {
         productIds = requestedItems.stream()
                 .map(item -> longValue(item.get("productId")))
                 .filter(Objects::nonNull)
-                .distinct()
                 .toList();
-
-        if (productIds.size() != requestedItems.size()) {
-            throw new IllegalArgumentException("Order contains an invalid or duplicate product");
-        }
 
         User seller = null;
 
@@ -224,7 +228,18 @@ public class OrderController {
             if (quantity < 1) {
                 throw new IllegalArgumentException("Quantity must be at least 1 for product: " + productId);
             }
-            if (product.stock < quantity) {
+
+            Object requestedVariant = requestedItem.get("variant");
+            ProductSizeVariant variant = findVariant(product.id, requestedVariant);
+            int availableStock;
+
+            if (variant != null) {
+                availableStock = Math.max(0, variant.stock);
+            } else {
+                availableStock = Math.max(0, product.stock);
+            }
+
+            if (availableStock < quantity) {
                 throw new IllegalArgumentException("Insufficient stock for product: " + product.name);
             }
 
@@ -235,15 +250,27 @@ public class OrderController {
             item.category = product.category;
             item.image = "/api/products/" + product.id + "/image";
             item.quantity = quantity;
-            item.price = BigDecimal.valueOf(product.price);
-            item.variant = stringValue(requestedItem.get("variant"));
+
+            if (variant != null) {
+                item.price = BigDecimal.valueOf(variant.price);
+                if (variant.colorVariant != null && variant.colorVariant.images != null
+                        && !variant.colorVariant.images.isEmpty()) {
+                    item.image = variant.colorVariant.images.get(0);
+                }
+                item.variant = variantText(variant);
+
+                variant.stock -= quantity;
+                product.stock = totalVariantStock(product.id);
+            } else {
+                item.price = BigDecimal.valueOf(product.price);
+                item.variant = stringValue(requestedVariant);
+                product.stock -= quantity;
+            }
+
             order.items.add(item);
 
-            product.stock -= quantity;
             product.sales += quantity;
-            if (product.stock == 0) {
-                product.status = Product.Status.OUT_OF_STOCK;
-            }
+            product.status = product.stock > 0 ? Product.Status.LIVE : Product.Status.OUT_OF_STOCK;
             products.save(product);
         }
 
@@ -432,14 +459,90 @@ public class OrderController {
             if (item.productId == null) continue;
 
             products.findById(item.productId).ifPresent(product -> {
-                product.stock += Math.max(0, item.quantity);
-                if (product.status == Product.Status.OUT_OF_STOCK && product.stock > 0) {
-                    product.status = Product.Status.LIVE;
+                ProductSizeVariant variant = findVariant(product.id, item.variant);
+                int quantity = Math.max(0, item.quantity);
+
+                if (variant != null) {
+                    variant.stock += quantity;
+                    product.stock = totalVariantStock(product.id);
+                } else {
+                    product.stock += quantity;
                 }
-                product.sales = Math.max(0, product.sales - Math.max(0, item.quantity));
+
+                product.status = product.stock > 0 ? Product.Status.LIVE : Product.Status.OUT_OF_STOCK;
+                product.sales = Math.max(0, product.sales - quantity);
                 products.save(product);
             });
         }
+    }
+
+    private ProductSizeVariant findVariant(Long productId, Object rawVariant) {
+        if (rawVariant == null) return null;
+
+        String sku = variantValue(rawVariant, "sku");
+        String color = variantValue(rawVariant, "color");
+        String size = variantValue(rawVariant, "size");
+
+        if (sku.isBlank() && color.isBlank() && size.isBlank()) return null;
+
+        List<ProductColorVariant> productVariants = colorVariants.findByProductIdOrderByIdAsc(productId);
+        List<ProductSizeVariant> sizes = productVariants.stream()
+                .filter(v -> color.isBlank() || equalsIgnoreCase(v.color, color))
+                .flatMap(v -> v.sizes == null ? java.util.stream.Stream.empty() : v.sizes.stream())
+                .toList();
+
+        if (!sku.isBlank()) {
+            Optional<ProductSizeVariant> bySku = sizes.stream()
+                    .filter(v -> equalsIgnoreCase(v.sku, sku))
+                    .findFirst();
+            if (bySku.isPresent()) return bySku.get();
+        }
+
+        if (!size.isBlank()) {
+            Optional<ProductSizeVariant> bySize = sizes.stream()
+                    .filter(v -> equalsIgnoreCase(v.size, size))
+                    .findFirst();
+            if (bySize.isPresent()) return bySize.get();
+        }
+
+        throw new IllegalArgumentException("Selected product variant is no longer available. Please refresh the product and try again.");
+    }
+
+    private int totalVariantStock(Long productId) {
+        return colorVariants.findByProductIdOrderByIdAsc(productId).stream()
+                .filter(Objects::nonNull)
+                .flatMap(v -> v.sizes == null ? java.util.stream.Stream.empty() : v.sizes.stream())
+                .mapToInt(v -> Math.max(0, v.stock))
+                .sum();
+    }
+
+    private String variantText(ProductSizeVariant variant) {
+        String color = variant.colorVariant == null ? "" : Objects.toString(variant.colorVariant.color, "");
+        String size = Objects.toString(variant.size, "");
+        String sku = Objects.toString(variant.sku, "");
+        return "{" + "color=" + color + ", size=" + size + ", sku=" + sku + "}";
+    }
+
+    private String variantValue(Object rawVariant, String key) {
+        if (rawVariant instanceof Map<?, ?> map) {
+            Object value = map.get(key);
+            if (value == null) value = map.get(key.substring(0, 1).toUpperCase(Locale.ROOT) + key.substring(1));
+            return value == null ? "" : String.valueOf(value).trim();
+        }
+
+        String text = String.valueOf(rawVariant).trim();
+        if (text.isBlank()) return "";
+
+        String quoted = java.util.regex.Pattern
+                .compile("[\\\"']?" + java.util.regex.Pattern.quote(key) + "[\\\"']?\\s*[:=]\\s*[\\\"']([^\\\"'};,]+)", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(text);
+        if (quoted.find()) return quoted.group(1).trim();
+
+        return "";
+    }
+
+    private boolean equalsIgnoreCase(String a, String b) {
+        return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
     }
 
     private User customerForCurrentUser() { return users.findById(CurrentUser.id()).orElseThrow(); }
