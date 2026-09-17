@@ -12,7 +12,9 @@ import java.util.List;
 }, indexes = {
         @Index(name = "idx_products_catalogue", columnList = "status, stock, created_at"),
         @Index(name = "idx_products_category", columnList = "category, status, stock, created_at"),
-        @Index(name = "idx_products_subcategory", columnList = "subcategory, status, stock")
+        @Index(name = "idx_products_subcategory", columnList = "subcategory, status, stock"),
+        @Index(name = "idx_products_seller_created", columnList = "seller_id, created_at"),
+        @Index(name = "idx_products_seller_status", columnList = "seller_id, status, stock, created_at")
 })
 public class Product extends BaseEntity {
 
