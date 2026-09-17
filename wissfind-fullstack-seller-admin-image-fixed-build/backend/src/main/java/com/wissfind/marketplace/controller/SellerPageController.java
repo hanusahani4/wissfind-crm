@@ -22,12 +22,13 @@ public class SellerPageController {
         this.products=products;this.imageRepo=imageRepo;this.colorVariants=colorVariants;this.orders=orders;this.returns=returns;this.coupons=coupons;this.payouts=payouts;this.reviews=reviews;this.commissions=commissions;this.disputes=disputes;
     }
     private Pageable page(int page,int size,String sort){return PageRequest.of(Math.max(0,page),Math.min(50,Math.max(1,size)),Sort.by(Sort.Direction.DESC,sort));}
-    @GetMapping("/products") @Transactional(readOnly=true)
+    @GetMapping("/products") @Transactional
     public Page<Product> products(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="") String search){
         Specification<Product> spec=Specification.where(SearchSpec.<Product>eqPath("seller.id",CurrentUser.id())).and(SearchSpec.<Product>contains(search,"name","sku","brand","category","subcategory","status"));
         var result=products.findAll(spec,page(page,size,"createdAt"));
         populateImages(result.getContent());
         syncVariantStock(result.getContent());
+        products.saveAll(result.getContent());
         return result;
     }
     @GetMapping("/orders") @Transactional(readOnly=true)
