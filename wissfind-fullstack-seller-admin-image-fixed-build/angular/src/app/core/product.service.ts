@@ -12,8 +12,15 @@ export class ProductService {
   private loadingInternal = false;
   private readonly cachePrefix = 'wissfind-product-cache:';
   private readonly cacheTtlMs = 10 * 60 * 1000;
+  private refreshTimer?: number;
+  private refreshStarted = false;
 
-  constructor(private api: BackendApiService) {}
+  constructor(private api: BackendApiService) {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => this.refreshIfVisible());
+      document.addEventListener('visibilitychange', () => this.refreshIfVisible());
+    }
+  }
 
   async load(signal?: AbortSignal): Promise<void> {
     if (this.loadedInternal || this.loadingInternal) return;
@@ -29,11 +36,30 @@ export class ProductService {
       firstItems.forEach((p: Product) => this.saveCachedProduct(p));
       const totalPages = Math.max(1, Number(first?.totalPages || 1));
       if (totalPages > 1 && !signal?.aborted) setTimeout(() => { void this.prefetchRemaining(totalPages, pageSize, signal); }, 250);
-      else { this.loadedInternal = true; this.loadingInternal = false; this.loading.set(false); this.loaded.set(true); }
+      else {
+        this.loadedInternal = true;
+        this.loadingInternal = false;
+        this.loading.set(false);
+        this.loaded.set(true);
+        this.startAutoRefresh();
+      }
     } catch {
       if (signal?.aborted) { this.loadingInternal = false; this.loading.set(false); return; }
       this.products.splice(0, this.products.length); this.productsVersion.update(v => v + 1); this.loadingInternal = false; this.loading.set(false); this.loadedInternal = true; this.loaded.set(true);
+      this.startAutoRefresh();
     }
+  }
+
+  private startAutoRefresh(): void {
+    if (this.refreshStarted || typeof window === 'undefined') return;
+    this.refreshStarted = true;
+    this.refreshTimer = window.setInterval(() => this.refreshIfVisible(), 30000);
+  }
+
+  private refreshIfVisible(): void {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (this.loadingInternal) return;
+    void this.reload();
   }
 
   private async prefetchRemaining(totalPages:number, pageSize:number, signal?:AbortSignal): Promise<void> {
@@ -52,6 +78,7 @@ export class ProductService {
       this.loadingInternal=false;
       this.loading.set(false);
       this.loaded.set(!signal?.aborted);
+      if (!signal?.aborted) this.startAutoRefresh();
     }
   }
 
@@ -95,7 +122,7 @@ export class ProductService {
   }
 
   private saveCachedProduct(product:Product){if(typeof localStorage==='undefined'||!product?.id)return;try{localStorage.setItem(this.cachePrefix+String(product.id),JSON.stringify({savedAt:Date.now(),product}));}catch{}}
-  private readCachedProduct(id:string):Product|undefined{if(typeof localStorage==='undefined')return undefined;try{const raw=localStorage.getItem(this.cachePrefix+String(id));if(!raw)return undefined;const parsed=JSON.parse(raw);if(!parsed?.product||Date.now()-Number(parsed.savedAt||0)>this.cacheTtlMs){localStorage.removeItem(this.cachePrefix+String(id));return undefined;}return this.map(parsed.product);}catch{return undefined;}}
+  private readCachedProduct(id:string):Product|undefined{if(typeof localStorage==='undefined')return undefined;try{const raw=localStorage.getItem(this.cachePrefix+id);if(!raw)return undefined;const parsed=JSON.parse(raw);if(!parsed?.product||Date.now()-Number(parsed.savedAt||0)>this.cacheTtlMs){localStorage.removeItem(this.cachePrefix+id);return undefined;}return this.map(parsed.product);}catch{return undefined;}}
   private map(x:any):Product{const images=Array.isArray(x.images)?x.images:[];const normalized=images.map((u:string)=>this.absoluteUrl(u));const image=this.absoluteUrl(x.image||normalized[0]||'');return{id:String(x.id),name:x.name,seller:x.seller?{id:Number(x.seller.id),name:x.seller.name||'',phone:x.seller.phone||''}:undefined,category:x.category,subcategory:x.subcategory,type:x.type,brand:x.brand||'',gender:x.gender||'',material:x.material||'',warranty:x.warranty||'',returnDays:x.returnDays==null?7:Number(x.returnDays),weight:x.weight==null?undefined:Number(x.weight),dimensions:x.dimensions||'',hsnCode:x.hsnCode||'',taxIncluded:x.taxIncluded!==false,featured:!!x.featured,gstPercent:Number(x.gstPercent||0),shippingFee:Number(x.shippingFee||0),platformFee:Number(x.platformFee||0),stock:Number(x.stock||0),price:Number(x.price||0),oldPrice:x.oldPrice==null?undefined:Number(x.oldPrice),rating:Number(x.rating||0),reviews:Number(x.reviews||0),image,images:normalized.length?normalized:(image?[image]:[]),description:x.description||'',tags:Array.isArray(x.tags)?x.tags:[],colors:Array.isArray(x.colors)?x.colors:[],sizes:Array.isArray(x.sizes)?x.sizes:[]};}
   private absoluteUrl(url:string){if(!url)return '';if(/^https?:\/\//i.test(url))return url;return `http://localhost:8080${url.startsWith('/')?'':'/'}${url}`;}
 }
