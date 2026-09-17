@@ -22,10 +22,17 @@ export class ReviewService {
     this.hideReviewFormUntilEligibilityKnown();
     let result:ProductReview[]=[];
     try {
-      const rows:any[]=await this.api.get(`/reviews/product/${id}`, signal);
+      // Reviews and eligibility are independent requests. Run them together
+      // so product-detail rendering is not delayed by a network waterfall.
+      const [rowsResult] = await Promise.all([
+        this.api.get(`/reviews/product/${id}`, signal),
+        this.getEligibility(id,signal)
+      ]);
+      const rows:any[]=Array.isArray(rowsResult)?rowsResult:[];
       result=rows.map(r=>({...r,id:String(r.id),productId:String(r.productId),date:r.date?new Date(r.date).toLocaleDateString('en-IN'):'',likedByMe:this.likes.has(String(r.id))}));
-    } catch {}
-    await this.getEligibility(id,signal);
+    } catch {
+      // Keep the detail page usable even when reviews/eligibility fail.
+    }
     setTimeout(() => { try { this.appRef.tick(); } catch {} }, 0);
     return result;
   }
