@@ -69,7 +69,6 @@ public class PaymentController {
         options.put("currency", "INR");
         options.put("receipt", order.orderNumber);
         options.put("notes", new JSONObject().put("internal_order_id", String.valueOf(order.id)));
-        options.put("capture", "automatic");
 
         com.razorpay.Order rzOrder = client.orders.create(options);
         String rzOrderId = rzOrder.get("id");
@@ -140,8 +139,6 @@ public class PaymentController {
         } catch (Exception ex) {
             throw new IllegalArgumentException("Invalid webhook signature");
         }
-        // Browser verification is the immediate fulfilment path. Webhooks are accepted
-        // and signature-checked here so a production deployment can reconcile events safely.
         return Map.of("received", true);
     }
 
