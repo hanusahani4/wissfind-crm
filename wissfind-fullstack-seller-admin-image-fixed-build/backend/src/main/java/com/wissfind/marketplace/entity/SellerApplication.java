@@ -6,6 +6,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @Entity
 @Table(name = "seller_applications", uniqueConstraints = {
         @UniqueConstraint(name = "uk_seller_application_user", columnNames = "user_id")
+}, indexes = {
+        @Index(name = "idx_seller_applications_status_created", columnList = "status, created_at"),
+        @Index(name = "idx_seller_applications_pincode", columnList = "pincode")
 })
 public class SellerApplication extends BaseEntity {
 
