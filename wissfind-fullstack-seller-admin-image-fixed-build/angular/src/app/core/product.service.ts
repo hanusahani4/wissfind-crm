@@ -44,13 +44,13 @@ export class ProductService {
       return {items:this.products.slice(safePage*safeSize,(safePage+1)*safeSize),total,totalPages:Math.max(1,Math.ceil(total/safeSize))};
     }
     const data:any=await this.api.get(`/products/paged?page=${safePage}&size=${safeSize}`,signal);
-    const items=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];
+    const items:Product[]=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];
     const total=Number(data?.totalElements||0);
     const totalPages=Math.max(1,Number(data?.totalPages||Math.ceil(total/safeSize)||1));
     if(safePage===0){this.products.splice(0,this.products.length);}
     const existing=new Set(this.products.map(p=>String(p.id)));
     for(const p of items){if(!existing.has(String(p.id))){this.products.push(p);existing.add(String(p.id));}else{const i=this.products.findIndex(x=>String(x.id)===String(p.id));if(i>=0)this.products[i]=p;}}
-    this.homePages.add(safePage);this.catalogueTotal.set(total);this.productsVersion.update(v=>v+1);items.forEach(p=>this.saveCachedProduct(p));
+    this.homePages.add(safePage);this.catalogueTotal.set(total);this.productsVersion.update(v=>v+1);items.forEach((p:Product)=>this.saveCachedProduct(p));
     return {items,total,totalPages};
   }
 
@@ -58,7 +58,7 @@ export class ProductService {
   private refreshIfVisible(){if(typeof document!=='undefined'&&document.visibilityState==='hidden')return;if(this.loadingInternal)return;void this.reload();}
 
   async loadPage(page:number,size=8,search='',signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}>{
-    try{const safePage=Math.max(0,page),safeSize=Math.min(24,Math.max(1,size));const data:any=await this.api.get(`/products/paged?page=${safePage}&size=${safeSize}`,signal);let items=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];const term=search.trim().toLowerCase();if(term)items=items.filter((p:Product)=>`${p.name} ${p.category} ${p.subcategory} ${p.brand}`.toLowerCase().includes(term));items.forEach(p=>this.saveCachedProduct(p));return{items,total:Number(data?.totalElements||0),totalPages:Math.max(1,Number(data?.totalPages||1))};}catch{return{items:[],total:0,totalPages:1};}
+    try{const safePage=Math.max(0,page),safeSize=Math.min(24,Math.max(1,size));const data:any=await this.api.get(`/products/paged?page=${safePage}&size=${safeSize}`,signal);let items=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];const term=search.trim().toLowerCase();if(term)items=items.filter((p:Product)=>`${p.name} ${p.category} ${p.subcategory} ${p.brand}`.toLowerCase().includes(term));items.forEach((p:Product)=>this.saveCachedProduct(p));return{items,total:Number(data?.totalElements||0),totalPages:Math.max(1,Number(data?.totalPages||1))};}catch{return{items:[],total:0,totalPages:1};}
   }
 
   async reload(){this.loadedInternal=false;this.loadingInternal=false;this.loaded.set(false);this.loading.set(false);this.homePages.clear();this.catalogueTotal.set(0);await this.load();}
