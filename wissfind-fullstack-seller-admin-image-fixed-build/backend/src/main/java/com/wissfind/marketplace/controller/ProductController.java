@@ -2,7 +2,9 @@ package com.wissfind.marketplace.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wissfind.marketplace.entity.Product;
+import com.wissfind.marketplace.entity.ProductColorVariant;
 import com.wissfind.marketplace.entity.ProductImage;
+import com.wissfind.marketplace.entity.ProductSizeVariant;
 import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.repo.ProductImageRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
@@ -48,7 +50,7 @@ public class ProductController {
     @Transactional(readOnly = true)
     public List<Product> list() {
         List<Product> result = repo.findAll().stream()
-                .filter(p -> p.status == Product.Status.LIVE && p.stock > 0)
+                .filter(this::customerAvailable)
                 .toList();
         populateImages(result);
         return result;
@@ -67,9 +69,7 @@ public class ProductController {
                 org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
         var spec = com.wissfind.marketplace.repo.SearchSpec.<Product>contains(
                 search, "name", "sku", "brand", "category", "subcategory", "seller.name");
-        var live = (org.springframework.data.jpa.domain.Specification<Product>) (root, query, cb) -> cb.and(
-                cb.equal(root.get("status"), Product.Status.LIVE),
-                cb.greaterThan(root.get("stock"), 0));
+        var live = customerAvailabilitySpec();
         var combined = spec == null ? live : live.and(spec);
         var result = repo.findAll(combined, pageable);
         populateImages(result.getContent());
@@ -79,8 +79,10 @@ public class ProductController {
     @GetMapping("/category/{category}")
     @Transactional(readOnly = true)
     public List<Product> byCategory(@PathVariable String category) {
-        List<Product> result = repo.findByCategoryIgnoreCaseAndStatusAndStockGreaterThan(
-                category, Product.Status.LIVE, 0);
+        List<Product> result = repo.findAll().stream()
+                .filter(this::customerAvailable)
+                .filter(p -> p.category != null && p.category.equalsIgnoreCase(category))
+                .toList();
         populateImages(result);
         return result;
     }
@@ -294,6 +296,37 @@ public class ProductController {
             product.status = Product.Status.LIVE;
         }
         return withImages(repo.save(product));
+    }
+
+    private boolean customerAvailable(Product product) {
+        if (product == null || product.status != Product.Status.LIVE) return false;
+        if (product.stock > 0) return true;
+        if (product.id == null) return false;
+        return colorVariantsWithStock(product.id);
+    }
+
+    private boolean colorVariantsWithStock(Long productId) {
+        return entityManager().createQuery("select count(sv.id) from ProductColorVariant cv join cv.sizes sv where cv.product.id = :productId and sv.stock > 0", Long.class)
+                .setParameter("productId", productId)
+                .getSingleResult() > 0;
+    }
+
+    private jakarta.persistence.EntityManager entityManager() {
+        return null;
+    }
+
+    private org.springframework.data.jpa.domain.Specification<Product> customerAvailabilitySpec() {
+        return (root, query, cb) -> {
+            var variantSubquery = query.subquery(Long.class);
+            var colorRoot = variantSubquery.from(ProductColorVariant.class);
+            var sizeJoin = colorRoot.join("sizes");
+            variantSubquery.select(cb.literal(1L))
+                    .where(cb.equal(colorRoot.get("product").get("id"), root.get("id")), cb.greaterThan(sizeJoin.get("stock"), 0));
+            return cb.and(
+                    cb.equal(root.get("status"), Product.Status.LIVE),
+                    cb.or(cb.greaterThan(root.get("stock"), 0), cb.exists(variantSubquery))
+            );
+        };
     }
 
     private User currentSeller() {
