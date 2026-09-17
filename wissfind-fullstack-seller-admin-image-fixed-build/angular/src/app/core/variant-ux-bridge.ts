@@ -60,24 +60,17 @@ export class VariantUxBridge {
     if (location.pathname !== '/') return;
     if (document.body.dataset['variantHomeNav'] === '1') return;
     document.body.dataset['variantHomeNav'] = '1';
-    document.addEventListener('click', async event => {
+    document.addEventListener('click', event => {
       const target = event.target as HTMLElement | null;
       const link = target?.closest('.product-card .image-wrap') as HTMLAnchorElement | null;
       if (!link || !link.href) return;
       const productId = this.productIdFromHref(link.href);
       if (!productId) return;
-      const image = link.querySelector('img')?.currentSrc || link.querySelector('img')?.src || '';
-      if (!image) return;
-      event.preventDefault(); event.stopImmediatePropagation();
-      try {
-        const variants = await this.getVariants(productId);
-        const match = this.findAvailableVariantByImage(variants, image) || this.findFirstAvailableVariant(variants);
-        const url = new URL(link.href, window.location.origin);
-        if (match?.color) url.searchParams.set('variantColor', match.color);
-        if (match?.size) url.searchParams.set('variantSize', match.size);
-        if (match?.image) url.searchParams.set('variantImage', match.image);
-        window.location.assign(url.toString());
-      } catch { window.location.assign(link.href); }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      // Navigation must never wait for the variants API. Product detail loads
+      // its variant data after the route is rendered, keeping clicks instant.
+      window.location.assign(link.href);
     }, true);
   }
 
