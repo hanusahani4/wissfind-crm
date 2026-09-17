@@ -28,24 +28,32 @@ export class ProductService {
     this.loading.set(true);
     this.loaded.set(false);
     try {
-      const pageSize = 8;
-      const first:any = await this.api.get(`/products/paged?page=0&size=${pageSize}`, signal);
-      const firstItems = Array.isArray(first?.content) ? first.content.map((x:any) => this.map(x)) : [];
-      this.products.splice(0, this.products.length, ...firstItems);
+      // Customer Home needs the complete customer-visible catalogue. This avoids
+      // relying on the paged search query for initial catalogue visibility and
+      // lets the Home component handle its own client-side pagination/filtering.
+      const data:any = await this.api.get('/products', signal);
+      const items = Array.isArray(data) ? data : (Array.isArray(data?.content) ? data.content : []);
+      const mapped = items.map((x:any) => this.map(x));
+      this.products.splice(0, this.products.length, ...mapped);
       this.productsVersion.update(v => v + 1);
-      firstItems.forEach((p: Product) => this.saveCachedProduct(p));
-      const totalPages = Math.max(1, Number(first?.totalPages || 1));
-      if (totalPages > 1 && !signal?.aborted) setTimeout(() => { void this.prefetchRemaining(totalPages, pageSize, signal); }, 250);
-      else {
-        this.loadedInternal = true;
+      mapped.forEach((p: Product) => this.saveCachedProduct(p));
+      this.loadedInternal = true;
+      this.loadingInternal = false;
+      this.loading.set(false);
+      this.loaded.set(true);
+      this.startAutoRefresh();
+    } catch {
+      if (signal?.aborted) {
         this.loadingInternal = false;
         this.loading.set(false);
-        this.loaded.set(true);
-        this.startAutoRefresh();
+        return;
       }
-    } catch {
-      if (signal?.aborted) { this.loadingInternal = false; this.loading.set(false); return; }
-      this.products.splice(0, this.products.length); this.productsVersion.update(v => v + 1); this.loadingInternal = false; this.loading.set(false); this.loadedInternal = true; this.loaded.set(true);
+      this.products.splice(0, this.products.length);
+      this.productsVersion.update(v => v + 1);
+      this.loadingInternal = false;
+      this.loading.set(false);
+      this.loadedInternal = true;
+      this.loaded.set(true);
       this.startAutoRefresh();
     }
   }
@@ -60,26 +68,6 @@ export class ProductService {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     if (this.loadingInternal) return;
     void this.reload();
-  }
-
-  private async prefetchRemaining(totalPages:number, pageSize:number, signal?:AbortSignal): Promise<void> {
-    const concurrency=2;
-    try {
-      for(let start=1;start<totalPages;start+=concurrency){
-        if(signal?.aborted)return;
-        const pages=Array.from({length:Math.min(concurrency,totalPages-start)},(_,offset)=>start+offset);
-        const results=await Promise.all(pages.map(page=>this.api.get(`/products/paged?page=${page}&size=${pageSize}`,signal)));
-        const nextProducts:Product[]=[];
-        for(const result of results) if(Array.isArray((result as any)?.content)) nextProducts.push(...(result as any).content.map((x:any)=>this.map(x)));
-        if(nextProducts.length){this.products.push(...nextProducts);this.productsVersion.update(v=>v+1);nextProducts.forEach(p=>this.saveCachedProduct(p));}
-      }
-    }catch{ } finally{
-      this.loadedInternal=!signal?.aborted;
-      this.loadingInternal=false;
-      this.loading.set(false);
-      this.loaded.set(!signal?.aborted);
-      if (!signal?.aborted) this.startAutoRefresh();
-    }
   }
 
   async loadPage(page:number,size=8,search='',signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}> {
