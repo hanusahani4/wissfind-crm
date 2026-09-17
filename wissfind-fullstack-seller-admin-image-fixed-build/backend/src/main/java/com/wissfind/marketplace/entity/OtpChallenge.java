@@ -7,7 +7,6 @@ import java.time.Instant;
 @Table(name = "otp_challenges", indexes = {
         @Index(name = "idx_otp_phone_purpose_created", columnList = "phone, purpose, created_at"),
         @Index(name = "idx_otp_phone_expiry", columnList = "phone, expires_at"),
-        @Index(name = "idx_otp_session_id", columnList = "session_id"),
         @Index(name = "idx_otp_pending", columnList = "phone, purpose, verified, consumed, expires_at")
 })
 public class OtpChallenge extends BaseEntity {
