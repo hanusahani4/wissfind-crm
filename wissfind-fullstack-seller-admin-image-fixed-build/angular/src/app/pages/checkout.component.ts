@@ -130,169 +130,36 @@ interface CustomerAddress {
     <ng-template #empty><div class="card success-box"><h2>Your cart is empty.</h2><p class="muted">Add products before checking out.</p><a class="btn" routerLink="/">Back to shop</a></div></ng-template>
   </div></main>`,
   styles: [`
-    h1{margin:12px 0 34px}.checkout-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,390px);gap:28px;align-items:start}.form{padding:26px;display:grid;gap:18px}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.section-title{display:flex;gap:11px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:14px;margin-top:3px}.section-title>span{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#111;color:#fff;font-size:12px;font-weight:800}.section-title div{display:grid;gap:2px}.section-title small{color:#888;font-size:12px}.address-list{display:grid;gap:10px}.address-card{width:100%;box-sizing:border-box;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px;display:flex;gap:12px;cursor:pointer;align-items:flex-start;transition:border-color .15s,box-shadow .15s}.address-card:hover{border-color:#999}.address-card:focus{outline:2px solid #111;outline-offset:1px}.address-card.selected{border-color:#111;box-shadow:0 0 0 1px #111 inset}.address-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}.address-action{border:1px solid #ddd;background:#fff;border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer}.address-action:hover{border-color:#111}.address-action.danger{color:#b42318;border-color:#efc7c3}.address-action.danger:hover{background:#fff4f2;border-color:#b42318}.radio-dot{width:22px;height:22px;min-width:22px;border:1px solid #aaa;border-radius:50%;display:grid;place-items:center;font-size:12px;background:#fff}.selected .radio-dot{background:#111;color:#fff;border-color:#111}.address-main{display:grid;gap:4px}.address-main b{font-size:14px}.address-main strong{font-size:13px}.address-main small{color:#666;line-height:1.4}.address-main em{font-style:normal;font-size:10px;background:#eaf6ef;color:#19744a;padding:3px 6px;border-radius:8px;margin-left:5px}.add-address{border:1px dashed #999;background:#fff;border-radius:11px;padding:12px;font-weight:700;cursor:pointer}.new-address{border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:13px;background:#fafafa}.form-head{display:flex;justify-content:space-between;align-items:center}.text-btn{border:0;background:none;text-decoration:underline;cursor:pointer;color:#666}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field label small{color:#999;font-weight:400}.field input{width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:9px;padding:11px 12px;background:#fff}.field input:focus{outline:2px solid #ddd}.field input[readonly]{background:#f1f1f1;color:#555}.default-check{font-size:13px;display:flex;gap:8px;align-items:center}.default-check input{accent-color:#111}.pin-status,.pin-ok,.selected-note{font-size:12px}.pin-status{color:#777}.pin-ok,.selected-note{color:#19744a;font-weight:700}.error{color:#b42318;font-size:13px;margin:0}.small-btn{width:max-content;padding:11px 18px}.payment{display:grid;gap:10px}.payment label{border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}.payment label.active-payment{border-color:#111;box-shadow:0 0 0 1px #111 inset}.payment label.disabled-payment{opacity:.55;background:#f7f7f7;cursor:not-allowed}.payment label.disabled-payment input{cursor:not-allowed}.payment label span{display:grid;gap:4px}.payment label small{font-size:12px;color:#777}.payment .cod-unavailable{color:#b42318;font-weight:700}.cod-limit-note{margin:-8px 0 0;color:#b42318;font-size:12px;font-weight:700}.payment input{accent-color:#111;margin-top:3px}.summary{padding:23px;position:sticky;top:95px}.summary h2{font-size:22px;margin:8px 0 20px}.checkout-items{display:grid;gap:9px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:14px}.checkout-item{min-width:0}.checkout-product{display:flex;gap:10px;align-items:center;padding:7px;border-radius:10px;color:inherit;text-decoration:none;transition:background .15s}.checkout-product:hover{background:#f7f7f5}.checkout-product img{width:58px;height:68px;object-fit:cover;border-radius:8px;background:#f1f1ee;flex-shrink:0}.checkout-product-info{display:grid;gap:3px;min-width:0}.checkout-product-info strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.checkout-product-info small{font-size:10px;color:#888}.checkout-product-info b{font-size:12px}.row{display:flex;justify-content:space-between;margin:14px 0;font-size:14px}.row small{color:#999;font-size:10px}.discount{color:var(--success)}.free{color:var(--success);font-weight:700}.total{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:18px;padding-top:18px;font-size:17px}.total strong{font-size:22px}.save{margin-top:14px;padding:10px;background:#edf8f1;color:var(--success);border-radius:9px;font-size:13px;font-weight:700}.note{text-align:center;font-size:12px;margin:0}.success-box{text-align:center;padding:80px 20px}.check{margin:auto auto 18px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:#e7f5ec;color:#19744a;font-size:26px;font-weight:800}.success-box p{max-width:500px;margin:12px auto 24px}.continue{display:inline-block;margin-left:10px;color:#666;font-size:13px}@media(max-width:800px){.checkout-grid{grid-template-columns:1fr}.summary{position:static}.two{grid-template-columns:1fr}}
-  `]
+    h1{margin:12px 0 34px}.checkout-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,390px);gap:28px;align-items:start}.form{padding:26px;display:grid;gap:18px}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.section-title{display:flex;gap:11px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:14px;margin-top:3px}.section-title>span{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#111;color:#fff;font-size:12px;font-weight:800}.section-title div{display:grid;gap:2px}.section-title small{color:#888;font-size:12px}.address-list{display:grid;gap:10px}.address-card{width:100%;box-sizing:border-box;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px;display:flex;gap:12px;cursor:pointer;align-items:flex-start;transition:border-color .15s,box-shadow .15s}.address-card:hover{border-color:#999}.address-card:focus{outline:2px solid #111;outline-offset:1px}.address-card.selected{border-color:#111;box-shadow:0 0 0 1px #111 inset}.address-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}.address-action{border:1px solid #ddd;background:#fff;border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer}.address-action:hover{border-color:#111}.address-action.danger{color:#b42318;border-color:#efc7c3}.address-action.danger:hover{background:#fff4f2;border-color:#b42318}.radio-dot{width:22px;height:22px;min-width:22px;border:1px solid #aaa;border-radius:50%;display:grid;place-items:center;font-size:12px;background:#fff}.selected .radio-dot{background:#111;color:#fff;border-color:#111}.address-main{display:grid;gap:4px}.address-main b{font-size:14px}.address-main strong{font-size:13px}.address-main small{color:#666;line-height:1.4}.address-main em{font-style:normal;font-size:10px;background:#eaf6ef;color:#19744a;padding:3px 6px;border-radius:8px;margin-left:5px}.add-address{border:1px dashed #999;background:#fff;border-radius:11px;padding:12px;font-weight:700;cursor:pointer}.new-address{border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:13px;background:#fafafa}.form-head{display:flex;justify-content:space-between;align-items:center}.text-btn{border:0;background:none;text-decoration:underline;cursor:pointer;color:#666}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field label small{color:#999;font-weight:400}.field input{width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:9px;padding:11px 12px;background:#fff}.field input:focus{outline:2px solid #ddd}.field input[readonly]{background:#f1f1f1;color:#555}.default-check{font-size:13px;display:flex;gap:8px;align-items:center}.default-check input{accent-color:#111}.pin-status,.pin-ok,.selected-note{font-size:12px}.pin-status{color:#777}.pin-ok,.selected-note{color:#19744a;font-weight:700}.error{color:#b42318;font-size:13px;margin:0}.small-btn{width:max-content;padding:11px 18px}.payment{display:grid;gap:10px}.payment label{border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}.payment label.active-payment{border-color:#111;box-shadow:0 0 0 1px #111 inset}.payment label.disabled-payment{opacity:.55;background:#f7f7f7;cursor:not-allowed}.payment label.disabled-payment input{cursor:not-allowed}.payment label span{display:grid;gap:4px}.payment label small{font-size:12px;color:#777}.payment .cod-unavailable{color:#b42318;font-weight:700}.cod-limit-note{margin:-8px 0 0;color:#b42318;font-size:12px;font-weight:700}.payment input{accent-color:#111;margin-top:3px}.summary{padding:23px;position:sticky;top:95px}.summary h2{font-size:22px;margin:8px 0 20px}.checkout-items{display:grid;gap:9px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:14px}.checkout-item{min-width:0}.checkout-product{display:flex;gap:10px;align-items:center;padding:7px;border-radius:10px;color:inherit;text-decoration:none;transition:background .15s}.checkout-product:hover{background:#f7f7f5}.checkout-product img{width:58px;height:68px;object-fit:cover;border-radius:8px;background:#f1f1ee;flex-shrink:0}.checkout-product-info{display:grid;gap:3px;min-width:0}.checkout-product-info strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.checkout-product-info small{font-size:10px;color:#888}.checkout-product-info b{font-size:12px}.row{display:flex;justify-content:space-between;gap:10px;margin:11px 0;font-size:13px}.row small{color:#888}.discount{color:#19744a}.free{color:#19744a;font-weight:800}.total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:15px;margin-top:15px}.total strong{font-size:20px}.save{margin-top:12px;padding:10px;border-radius:9px;background:#eef8f1;color:#19744a;text-align:center;font-weight:800;font-size:12px}.success-box{text-align:center;padding:55px 20px}.success-box .check{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;background:#111;color:#fff;font-size:25px}.success-box h2{margin:0 0 8px}.success-box .btn{display:inline-flex;margin-top:14px}.continue{display:block;margin-top:15px;color:#111;text-decoration:underline;font-weight:700}.note{font-size:11px;text-align:center}.muted{color:#777}@media(max-width:900px){.checkout-grid{grid-template-columns:1fr}.summary{position:static}.two{grid-template-columns:1fr}}`
 })
 export class CheckoutComponent implements OnInit, OnDestroy {
-  readonly cart = inject(CartService);
-  private readonly api = inject(BackendApiService);
-  private readonly auth = inject(AuthService);
-  private readonly cdr = inject(ChangeDetectorRef);
-  placed = false; loading = false; error = '';
-  addresses: CustomerAddress[] = [];
-  selectedAddressId: number | null = null;
-  showAddressForm = false; savingAddress = false; addressError = '';
-  pinLoading = false; pinInfo: any = null; private pinRequestId = 0;
-  editingAddressId: number | null = null;
-  form = this.emptyForm();
-  private readonly pageAbort = new AbortController();
-
-  async ngOnInit() {
-    await this.auth.ready();
-    await this.loadAddresses();
-    this.cdr.markForCheck();
+  cart = inject(CartService); private api = inject(BackendApiService); private auth = inject(AuthService); private cdr = inject(ChangeDetectorRef);
+  addresses:CustomerAddress[]=[]; selectedAddressId:number|null=null; showAddressForm=false; editingAddressId:number|null=null; savingAddress=false; loading=false; placed=false; error=''; addressError=''; pinLoading=false; pinInfo:any=null; private pinRequestId=0; private pageAbort=new AbortController();
+  form:any={label:'Home',fullName:'',phone:'',line1:'',line2:'',city:'',district:'',state:'',pincode:'',country:'India',defaultAddress:true};
+  ngOnInit(){void this.loadAddresses();}
+  ngOnDestroy(){this.pageAbort.abort();}
+  async loadAddresses(preferredId?:number|null){try{const data:any=await this.api.get('/addresses',this.pageAbort.signal);this.addresses=Array.isArray(data)?data:[];const preferred=preferredId??this.addresses.find(a=>a.defaultAddress)?.id??this.addresses[0]?.id??null;this.selectedAddressId=preferred?Number(preferred):null;this.cdr.markForCheck();}catch(e:any){if(!this.isAbort(e))this.error=e?.error?.error||e?.message||'Unable to load saved addresses.';}}
+  selectAddress(a:CustomerAddress){this.selectedAddressId=Number(a.id);this.error='';this.cdr.markForCheck();}
+  startNewAddress(){this.editingAddressId=null;this.form={label:'Home',fullName:'',phone:'',line1:'',line2:'',city:'',district:'',state:'',pincode:'',country:'India',defaultAddress:this.addresses.length===0};this.pinInfo=null;this.addressError='';this.showAddressForm=true;this.cdr.markForCheck();}
+  editAddress(a:CustomerAddress){this.editingAddressId=a.id;this.form={...a};this.pinInfo={valid:true,district:a.district,state:a.state,postOffices:[]};this.addressError='';this.showAddressForm=true;this.cdr.markForCheck();}
+  async deleteAddress(a:CustomerAddress){if(!confirm(`Delete ${a.label} address?`))return;try{await this.api.delete('/addresses/'+a.id,this.pageAbort.signal);await this.loadAddresses();}catch(e:any){if(!this.isAbort(e))this.error=e?.error?.error||e?.message||'Unable to delete address.';this.cdr.markForCheck();}}
+  async validatePincode(){const p=this.form.pincode?.trim()||'';if(!/^\d{6}$/.test(p)){this.pinInfo=null;return false;}const requestId=++this.pinRequestId;this.pinLoading=true;this.pinInfo=null;this.addressError='';this.cdr.markForCheck();try{const info:any=await this.api.get('/postal/pincode/'+p,this.pageAbort.signal);if(requestId!==this.pinRequestId)return false;if(info?.valid){this.pinInfo=info;this.form.district=info.district||this.form.district;this.form.state=info.state||this.form.state;this.form.country='India';return true;}this.addressError='PIN code could not be verified.';return false;}catch(e:any){if(requestId===this.pinRequestId){this.pinInfo=null;this.addressError=e?.error?.error||e?.message||'Unable to verify PIN code.';}return false;}finally{if(requestId===this.pinRequestId){this.pinLoading=false;this.cdr.markForCheck();}}
   }
-  ngOnDestroy() { this.pageAbort.abort(); }
-
-  private emptyForm() { return { label:'Home', fullName:'', phone:'', line1:'', line2:'', city:'', pincode:'', defaultAddress:false }; }
-
-  async loadAddresses(preferredId: number | null = this.selectedAddressId) {
-    try {
-      const rows:any = await this.api.get('/addresses', this.pageAbort.signal);
-      this.addresses = Array.isArray(rows) ? rows : [];
-      const preferred = preferredId != null ? this.addresses.find(a => Number(a.id) === Number(preferredId)) : null;
-      const defaultAddress = this.addresses.find(a => a.defaultAddress);
-      this.selectedAddressId = preferred?.id ?? defaultAddress?.id ?? this.addresses[0]?.id ?? null;
-      if (!this.addresses.length && !this.showAddressForm) this.startNewAddress();
-      this.cdr.markForCheck();
-    } catch (e:any) {
-      if (!this.isAbort(e)) {
-        this.addressError = e?.error?.error || e?.message || 'Unable to load saved addresses.';
-        this.cdr.markForCheck();
-      }
-    }
-  }
-
-  selectAddress(a: CustomerAddress) {
-    this.selectedAddressId = Number(a.id); this.showAddressForm = false; this.editingAddressId = null; this.addressError = ''; this.error = '';
-  }
-  selectPayment(method: 'COD' | 'RAZORPAY') { this.cart.setPaymentMethod(method); this.error = ''; }
-
-  startNewAddress() {
-    const u:any = this.auth.user();
-    this.editingAddressId = null; this.selectedAddressId = null; this.form = this.emptyForm();
-    this.form.fullName = u?.name || ''; this.form.phone = u?.phone || ''; this.pinInfo = null; this.addressError = ''; this.error = ''; this.showAddressForm = true;
-    this.cdr.markForCheck();
-  }
-
-  editAddress(a: CustomerAddress) {
-    this.editingAddressId = Number(a.id); this.selectedAddressId = null;
-    this.form = { label:a.label, fullName:a.fullName, phone:a.phone, line1:a.line1, line2:a.line2||'', city:a.city, pincode:a.pincode, defaultAddress:a.defaultAddress };
-    this.pinInfo = {district:a.district,state:a.state,postOffices:[],valid:true}; this.addressError=''; this.error=''; this.showAddressForm=true; this.cdr.markForCheck();
-  }
-
-  async deleteAddress(a: CustomerAddress) {
-    if (this.savingAddress || this.loading) return;
-    const ok = window.confirm(`Delete "${a.label}" address?`); if (!ok) return;
-    this.addressError = ''; this.cdr.markForCheck();
-    try {
-      await this.api.delete(`/addresses/${a.id}`, this.pageAbort.signal);
-      const deletedId = Number(a.id); this.addresses = this.addresses.filter(x => Number(x.id) !== deletedId);
-      if (this.selectedAddressId === deletedId) { const fallback = this.addresses.find(x => x.defaultAddress) ?? this.addresses[0]; this.selectedAddressId = fallback?.id ?? null; }
-      if (this.editingAddressId === deletedId) { this.editingAddressId = null; this.showAddressForm = false; this.form = this.emptyForm(); this.pinInfo = null; }
-      await this.loadAddresses(this.selectedAddressId);
-    } catch (e:any) {
-      if (!this.isAbort(e)) { this.addressError = e?.error?.error || e?.message || 'Unable to delete address.'; this.cdr.markForCheck(); }
-    }
-  }
-
-  private normalizePhone(v:string) { return (v||'').replace(/[\s-]/g,''); }
-
-  async validatePincode() {
-    const pin=(this.form.pincode||'').replace(/\D/g,''); this.form.pincode=pin;
-    if (!/^\d{6}$/.test(pin)) { this.pinInfo=null; this.cdr.markForCheck(); return false; }
-    const requestId=++this.pinRequestId; this.pinLoading=true; this.addressError=''; this.cdr.markForCheck();
-    try {
-      const info:any=await this.api.get('/addresses/pincode/'+pin, this.pageAbort.signal);
-      if(requestId!==this.pinRequestId) return false;
-      this.pinInfo=info; if(info?.district && !this.form.city) this.form.city=info.district; this.cdr.markForCheck(); return !!info?.valid;
-    } catch(e:any) { if(requestId===this.pinRequestId){this.pinInfo=null;this.addressError=e?.error?.error||e?.message||'Invalid PIN code.';this.cdr.markForCheck();} return false; }
-    finally { if(requestId===this.pinRequestId){this.pinLoading=false;this.cdr.markForCheck();} }
-  }
-
-  onPincodeInput() { this.form.pincode=this.form.pincode.replace(/\D/g,'').slice(0,6); this.pinInfo=null; this.addressError=''; this.cdr.markForCheck(); }
-
-  private validateForm() {
-    const f=this.form, phone=this.normalizePhone(f.phone);
-    if(!f.label.trim()) return 'Please enter an address label.';
-    if(!/^[A-Za-z .\'-]{2,100}$/.test(f.fullName.trim())) return 'Please enter a valid full name.';
-    if(!/^(?:\+91[6-9]\d{9}|[6-9]\d{9})$/.test(phone)) return 'Please enter a valid Indian mobile number.';
-    if(f.line1.trim().length<5) return 'Please enter a complete address.';
-    if(!/^\d{6}$/.test(f.pincode)) return 'Please enter a valid 6-digit PIN code.';
-    if(!f.city.trim()) return 'Please enter your city/town.';
-    if(!this.pinInfo?.valid) return 'Please enter a real 6-digit Indian PIN code. We will try multiple postal services automatically.';
-    return '';
-  }
-
-  async saveAddress() {
-    this.addressError = this.validateForm(); this.cdr.markForCheck();
-    if (this.addressError) return;
-    if (!this.pinInfo?.valid) {
-      const valid = await this.validatePincode();
-      if (!valid) { this.addressError = this.validateForm() || 'Please enter a real 6-digit Indian PIN code.'; this.cdr.markForCheck(); return; }
-    }
-    this.savingAddress = true; this.addressError = ''; this.cdr.markForCheck();
-    const editingId = this.editingAddressId;
-    try {
-      const payload = {...this.form, phone: this.normalizePhone(this.form.phone)};
-      const saved:any = editingId ? await this.api.put('/addresses/' + editingId, payload, this.pageAbort.signal) : await this.api.post('/addresses', payload, this.pageAbort.signal);
-      const savedId = Number(saved?.id);
-      this.showAddressForm = false; this.editingAddressId = null; this.addressError = '';
-      if (saved?.id != null) this.selectedAddressId = savedId;
-      if (saved?.id != null) {
-        const idx = this.addresses.findIndex(a => Number(a.id) === savedId);
-        if (idx >= 0) this.addresses[idx] = saved; else this.addresses = [saved, ...this.addresses];
-      }
-      this.cdr.markForCheck();
-      await this.loadAddresses(saved?.id != null ? savedId : this.selectedAddressId);
-    } catch(e:any) {
-      if (!this.isAbort(e)) { this.addressError = e?.error?.error || e?.message || 'Unable to save address. Please try again.'; this.cdr.markForCheck(); }
-    } finally { this.savingAddress = false; this.cdr.markForCheck(); }
-  }
-
-  async placeOrder() {
-    if(this.loading) return; this.loading=true; this.error=''; this.cdr.markForCheck();
-    try {
-      const items=this.cart.cart(); if(!items.length) throw new Error('Your cart is empty.');
-      if(!this.selectedAddressId) throw new Error('Please select a shipping address.');
-      if(this.cart.paymentMethod()==='COD' && !this.cart.codAllowed()) {
-        this.cart.setPaymentMethod('RAZORPAY');
-        throw new Error(this.cart.codUnavailableReason() || 'COD is unavailable for this order. Please choose prepaid payment.');
-      }
-      const orderItems=items.map(item=>({productId:Number(item.product.id),quantity:Math.max(1,Math.floor(Number(item.quantity)||0)),variant:(item.product as any)?.variant||undefined}));
+  onPincodeInput(){this.form.pincode=this.form.pincode.replace(/\D/g,'').slice(0,6);this.pinInfo=null;this.addressError='';this.cdr.markForCheck();}
+  private validateForm(){const f=this.form,phone=this.normalizePhone(f.phone);if(!f.label.trim())return'Please enter an address label.';if(!/^[A-Za-z .\'-]{2,100}$/.test(f.fullName.trim()))return'Please enter a valid full name.';if(!/^(?:\+91[6-9]\d{9}|[6-9]\d{9})$/.test(phone))return'Please enter a valid Indian mobile number.';if(f.line1.trim().length<5)return'Please enter a complete address.';if(!/^\d{6}$/.test(f.pincode))return'Please enter a valid 6-digit PIN code.';if(!f.city.trim())return'Please enter your city/town.';if(!this.pinInfo?.valid)return'Please enter a real 6-digit Indian PIN code. We will try multiple postal services automatically.';return'';}
+  normalizePhone(v:string){const s=String(v||'').replace(/[\s()-]/g,'');return s.startsWith('+91')?s:s.length===10?'+91'+s:s;}
+  async saveAddress(){this.addressError=this.validateForm();this.cdr.markForCheck();if(this.addressError)return;if(!this.pinInfo?.valid){const valid=await this.validatePincode();if(!valid){this.addressError=this.validateForm()||'Please enter a real 6-digit Indian PIN code.';this.cdr.markForCheck();return;}}this.savingAddress=true;this.addressError='';this.cdr.markForCheck();const editingId=this.editingAddressId;try{const payload={...this.form,phone:this.normalizePhone(this.form.phone)};const saved:any=editingId?await this.api.put('/addresses/'+editingId,payload,this.pageAbort.signal):await this.api.post('/addresses',payload,this.pageAbort.signal);const savedId=Number(saved?.id);this.showAddressForm=false;this.editingAddressId=null;this.addressError='';if(saved?.id!=null)this.selectedAddressId=savedId;if(saved?.id!=null){const idx=this.addresses.findIndex(a=>Number(a.id)===savedId);if(idx>=0)this.addresses[idx]=saved;else this.addresses=[saved,...this.addresses];}this.cdr.markForCheck();await this.loadAddresses(saved?.id!=null?savedId:this.selectedAddressId);}catch(e:any){if(!this.isAbort(e)){this.addressError=e?.error?.error||e?.message||'Unable to save address. Please try again.';this.cdr.markForCheck();}}finally{this.savingAddress=false;this.cdr.markForCheck();}}
+  async placeOrder(){if(this.loading)return;this.loading=true;this.error='';this.cdr.markForCheck();try{const items=this.cart.cart();if(!items.length)throw new Error('Your cart is empty.');if(!this.selectedAddressId)throw new Error('Please select a shipping address.');if(this.cart.paymentMethod()==='COD'&&!this.cart.codAllowed()){this.cart.setPaymentMethod('RAZORPAY');throw new Error(this.cart.codUnavailableReason()||'COD is unavailable for this order. Please choose prepaid payment.');}
+      const orderItems=items.map(item=>({productId:Number(item.product.id),quantity:Math.max(1,Math.floor(Number(item.quantity)||0)),variant:item.variant||undefined}));
       const productIds=orderItems.map(i=>i.productId).filter(id=>Number.isFinite(id)&&id>0);
-      if(!productIds.length||productIds.length!==items.length||orderItems.some(i=>!Number.isFinite(i.productId)||i.quantity<1)) throw new Error('One or more cart products are invalid. Please remove them and add them again.');
+      if(!productIds.length||productIds.length!==items.length||orderItems.some(i=>!Number.isFinite(i.productId)||i.quantity<1))throw new Error('One or more cart products are invalid. Please remove them and add them again.');
       const knownSellerIds=[...new Set(items.map(i=>Number((i.product as any)?.seller?.id)).filter(id=>Number.isFinite(id)&&id>0))];
       const payload:any={productIds,items:orderItems,shippingAddressId:this.selectedAddressId,paymentMethod:this.cart.paymentMethod(),couponCode:this.cart.couponCode(),giftWrap:this.cart.giftWrap(),paymentStatus:'PENDING',deliveryStatus:'Processing'};
-      if(knownSellerIds.length===1) payload.sellerId=knownSellerIds[0];
+      if(knownSellerIds.length===1)payload.sellerId=knownSellerIds[0];
       const order:any=await this.api.post('/orders',payload,this.pageAbort.signal);
-      if(this.cart.paymentMethod()==='COD') { await this.api.post('/payments/dummy',{order:{id:order.id},amount:order.total},this.pageAbort.signal); this.placed=true; this.cart.clear(); return; }
-      const rz:any=await this.api.post('/payments/razorpay/order',{orderId:order.id},this.pageAbort.signal); await this.openRazorpay(rz, order);
-    } catch(e:any) { if(!this.isAbort(e)) this.error=e?.error?.error||e?.message||'Unable to place order. Please try again.'; }
-    finally { this.loading=false; this.cdr.markForCheck(); }
-  }
-
-  private openRazorpay(data:any, order:any): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const RazorpayCtor=(window as any).Razorpay;
-      if(!RazorpayCtor) { reject(new Error('Razorpay checkout could not be loaded. Please refresh and try again.')); return; }
-      const u:any=this.auth.user();
-      const options:any={key:data.keyId, amount:data.amount, currency:data.currency || 'INR', name:'WissFind', description:'Order '+order.orderNumber, order_id:data.razorpayOrderId, prefill:{name:u?.name || '', email:u?.email || '', contact:u?.phone || ''}, theme:{color:'#111111'}, timeout:600,
-        handler: async (response:any) => { try { await this.api.post('/payments/razorpay/verify', response, this.pageAbort.signal); this.placed=true; this.cart.clear(); this.cdr.markForCheck(); resolve(); } catch(e:any) { reject(new Error(e?.error?.error||e?.message||'Razorpay payment verification failed.')); } },
-        modal:{ondismiss:()=>reject(new Error('Payment cancelled. Your order is still pending and no successful payment was recorded.'))}
-      };
-      try { new RazorpayCtor(options).open(); } catch(e) { reject(e); }
-    });
-  }
+      if(this.cart.paymentMethod()==='COD'){await this.api.post('/payments/dummy',{order:{id:order.id},amount:order.total},this.pageAbort.signal);this.placed=true;this.cart.clear();return;}
+      const rz:any=await this.api.post('/payments/razorpay/order',{orderId:order.id},this.pageAbort.signal);await this.openRazorpay(rz,order);
+    }catch(e:any){if(!this.isAbort(e))this.error=e?.error?.error||e?.message||'Unable to place order. Please try again.';}finally{this.loading=false;this.cdr.markForCheck();}}
+  private openRazorpay(data:any,order:any):Promise<void>{return new Promise((resolve,reject)=>{const RazorpayCtor=(window as any).Razorpay;if(!RazorpayCtor){reject(new Error('Razorpay checkout could not be loaded. Please refresh and try again.'));return;}const u:any=this.auth.user();const options:any={key:data.keyId,amount:data.amount,currency:data.currency||'INR',name:'WissFind',description:'Order '+order.orderNumber,order_id:data.razorpayOrderId,prefill:{name:u?.name||'',email:u?.email||'',contact:u?.phone||''},theme:{color:'#111111'},timeout:600,handler:async(response:any)=>{try{await this.api.post('/payments/razorpay/verify',response,this.pageAbort.signal);this.placed=true;this.cart.clear();this.cdr.markForCheck();resolve();}catch(e:any){reject(new Error(e?.error?.error||e?.message||'Razorpay payment verification failed.'));}},modal:{ondismiss:()=>reject(new Error('Payment cancelled. Your order is still pending and no successful payment was recorded.'))}};try{new RazorpayCtor(options).open();}catch(e){reject(e);}});}
   private isAbort(e:any){return e?.name==='AbortError';}
 }
