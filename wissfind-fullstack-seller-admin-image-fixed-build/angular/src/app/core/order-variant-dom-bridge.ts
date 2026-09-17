@@ -43,7 +43,7 @@ export class OrderVariantDomBridge {
 
     document.querySelectorAll<HTMLElement>('.orders-page .product-info p').forEach((node) => {
       const raw = node.textContent?.trim() || '';
-      if (!raw || node.dataset.variantFormatted === '1') return;
+      if (!raw || node.dataset['variantFormatted'] === '1') return;
 
       const match = raw.match(/^(.*?)(?:\s*·\s*Qty\s+)(\d+)$/i);
       if (!match) return;
@@ -53,7 +53,7 @@ export class OrderVariantDomBridge {
       const details = this.parseVariant(variantText);
 
       node.textContent = this.format(details, quantity);
-      node.dataset.variantFormatted = '1';
+      node.dataset['variantFormatted'] = '1';
       node.classList.add('order-variant-summary');
     });
   }
