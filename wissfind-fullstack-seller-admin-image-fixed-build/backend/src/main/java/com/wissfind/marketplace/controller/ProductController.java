@@ -224,7 +224,21 @@ public class ProductController {
         }
 
         for (Product product : products) {
-            product.variantPreview = previews.get(product.id);
+            Product.VariantPreview preview = previews.get(product.id);
+            product.variantPreview = preview;
+            if (preview != null && preview.image != null && !preview.image.isBlank()) {
+                List<String> parentImages = product.images == null ? Collections.emptyList() : product.images;
+                List<String> orderedImages = new ArrayList<>();
+                orderedImages.add(preview.image);
+                parentImages.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(v -> !v.isBlank())
+                        .filter(v -> !v.equals(preview.image))
+                        .forEach(orderedImages::add);
+                product.images = orderedImages;
+                product.image = preview.image;
+            }
         }
     }
 
