@@ -39,4 +39,14 @@ export interface Product {
   tags: string[];
   colors?: string[];
   sizes?: string[];
+  variantPreview?: {
+    hasVariants: boolean;
+    color?: string;
+    size?: string;
+    sku?: string;
+    price?: number;
+    oldPrice?: number;
+    stock?: number;
+    image?: string;
+  };
 }
