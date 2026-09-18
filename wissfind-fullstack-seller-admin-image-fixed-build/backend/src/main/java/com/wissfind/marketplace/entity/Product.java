@@ -51,6 +51,25 @@ public class Product extends BaseEntity {
     @Transient
     public List<String> images = new ArrayList<>();
 
+    /**
+     * Server-selected customer-facing variant preview.
+     * Populated by ProductController for catalogue/detail responses so the UI
+     * does not need one /variants request per product card.
+     */
+    @Transient
+    public VariantPreview variantPreview;
+
+    public static class VariantPreview {
+        public boolean hasVariants;
+        public String color;
+        public String size;
+        public String sku;
+        public double price;
+        public double oldPrice;
+        public int stock;
+        public String image;
+    }
+
     @BatchSize(size = 32)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
