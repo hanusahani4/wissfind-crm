@@ -80,22 +80,36 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   facebookUrl = '';
   xUrl = '';
 
+  constructor() {
+    if(typeof document!=='undefined'&&location.pathname.match(/^\/product\/[^/?#]+/)){
+      document.documentElement.classList.add('variant-detail-pending');
+    }
+  }
+
   async ngOnInit() {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.product = await this.products.getById(id);
+    this.product = await this.products.getByIdAsync(id);
     if (!this.product) { this.router.navigateByUrl('/'); return; }
     this.selectedImage = this.product.images?.[0] || this.product.image || '';
-    this.relatedProducts = (await this.products.getRelated(this.product.category, id)).slice(0, 4);
-    this.reviewList = await this.reviews.getReviews(id);
-    this.averageRating = this.reviewList.length ? this.reviewList.reduce((sum, r) => sum + r.rating, 0) / this.reviewList.length : Number(this.product.rating || 0);
-    this.aiReviewScore = Math.round(this.averageRating * 20);
-    this.aiPros = this.averageRating >= 4 ? 'Strong overall customer satisfaction.' : 'Customers have mixed feedback.';
-    this.aiCons = this.averageRating < 4 ? 'Some customers report room for improvement.' : 'No recurring issue is dominant.';
-    this.aiVerdict = this.averageRating >= 4 ? 'Generally positive customer feedback.' : 'Review the detailed feedback before buying.';
     const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
     this.facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
     this.xUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(this.product.name || '')}`;
     this.startAutoSlide();
+    this.cdr.markForCheck();
+
+    // Secondary data must never block the first product paint.
+    const relatedPromise = this.products.getRelated(this.product.category, id).catch(() => []);
+    const reviewsPromise = this.reviews.getReviews(id).catch(() => []);
+    const [related, reviews] = await Promise.all([relatedPromise, reviewsPromise]);
+    this.relatedProducts = related.slice(0, 4);
+    this.reviewList = reviews;
+    this.averageRating = this.reviewList.length
+      ? this.reviewList.reduce((sum, r) => sum + r.rating, 0) / this.reviewList.length
+      : Number(this.product.rating || 0);
+    this.aiReviewScore = Math.round(this.averageRating * 20);
+    this.aiPros = this.averageRating >= 4 ? 'Strong overall customer satisfaction.' : 'Customers have mixed feedback.';
+    this.aiCons = this.averageRating < 4 ? 'Some customers report room for improvement.' : 'No recurring issue is dominant.';
+    this.aiVerdict = this.averageRating >= 4 ? 'Generally positive customer feedback.' : 'Review the detailed feedback before buying.';
     this.cdr.markForCheck();
   }
 
