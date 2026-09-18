@@ -72,7 +72,7 @@ export class ProductService {
     const existing=this.products.find(x=>String(x.id)===productId);
     if(existing) Object.assign(existing,cached); else this.products.push(cached);
     this.productsVersion.update(v=>v+1);
-    void this.refreshProduct(productId,signal);
+    void this.refreshProduct(productId,signal).catch(()=>{});
     return cached;
   }
   try{return await this.refreshProduct(productId,signal);}
