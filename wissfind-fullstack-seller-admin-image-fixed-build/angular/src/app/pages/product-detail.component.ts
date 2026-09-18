@@ -81,15 +81,8 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   xUrl = '';
 
   constructor() {
-    if(typeof document!=='undefined'&&location.pathname.match(/^\/product\/[^/?#]+/)){
-      document.documentElement.classList.add('variant-detail-pending');
-      if(!document.getElementById('variant-detail-pending-style')){
-        const style=document.createElement('style');
-        style.id='variant-detail-pending-style';
-        style.textContent='.variant-detail-pending main.page .gallery{visibility:hidden!important}';
-        document.head.appendChild(style);
-      }
-    }
+    // Keep the product gallery visible immediately. Variant selection is hydrated
+    // in the background and must not block the first product image paint.
   }
 
   async ngOnInit() {
