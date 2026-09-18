@@ -83,6 +83,12 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   constructor() {
     if(typeof document!=='undefined'&&location.pathname.match(/^\/product\/[^/?#]+/)){
       document.documentElement.classList.add('variant-detail-pending');
+      if(!document.getElementById('variant-detail-pending-style')){
+        const style=document.createElement('style');
+        style.id='variant-detail-pending-style';
+        style.textContent='.variant-detail-pending main.page .gallery{visibility:hidden!important}';
+        document.head.appendChild(style);
+      }
     }
   }
 
