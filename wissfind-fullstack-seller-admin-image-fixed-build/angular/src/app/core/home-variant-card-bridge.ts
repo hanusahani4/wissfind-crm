@@ -63,6 +63,12 @@ export class HomeVariantCardBridge {
       }
       cards.forEach(card=>{
         if(card.dataset['variantCardDecorated']==='1')return;
+        // Backend already selected the customer-facing variant in /products/paged.
+        // Do not hide the image or make a per-card /variants request.
+        if(card.dataset['variantServer']==='true'){
+          card.dataset['variantCardDecorated']='1';
+          return;
+        }
         const link=card.querySelector('.image-wrap') as HTMLAnchorElement|null;
         if(link){
           // Do not flash the parent image before the variant request resolves.
@@ -77,6 +83,7 @@ export class HomeVariantCardBridge {
     }
     // Fallback: only decorate the first viewport-sized batch.
     cards.slice(0,8).forEach(card=>{
+      if(card.dataset['variantServer']==='true'){card.dataset['variantCardDecorated']='1';return;}
       const link=card.querySelector('.image-wrap') as HTMLAnchorElement|null;
       const image=link?.querySelector('img') as HTMLImageElement|null;
       const productId=link?this.productIdFromHref(link.href):'';
