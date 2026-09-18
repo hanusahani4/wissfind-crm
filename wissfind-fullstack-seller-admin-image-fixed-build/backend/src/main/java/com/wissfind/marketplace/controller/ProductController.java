@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.ProductColorVariant;
 import com.wissfind.marketplace.entity.ProductImage;
+import com.wissfind.marketplace.entity.ProductSizeVariant;
 import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.repo.ProductImageRepository;
 import com.wissfind.marketplace.repo.ProductRepository;
