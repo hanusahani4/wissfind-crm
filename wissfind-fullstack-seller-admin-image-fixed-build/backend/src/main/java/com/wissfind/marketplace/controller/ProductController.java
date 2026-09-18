@@ -175,6 +175,56 @@ public class ProductController {
         if (products == null || products.isEmpty()) return; List<Long> productIds = products.stream().map(p -> p.id).filter(Objects::nonNull).toList(); if (productIds.isEmpty()) return;
         Map<Long, List<ProductImage>> imagesByProduct = imageRepo.findByProductIds(productIds).stream().collect(Collectors.groupingBy(image -> image.product.id, LinkedHashMap::new, Collectors.toList()));
         for (Product product : products) { List<ProductImage> storedImages = imagesByProduct.getOrDefault(product.id, Collections.emptyList()); product.images = storedImages.stream().map(image -> imageDisplayUrl(product.id, image)).toList(); product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0)); }
+        populateVariantPreviews(products);
+    }
+
+    /**
+     * Resolve the first customer-usable variant in one batched query.
+     * This keeps the catalogue response self-contained: the browser can render
+     * the correct variant image/price/stock immediately instead of requesting
+     * /variants once for every product card.
+     */
+    private void populateVariantPreviews(List<Product> products) {
+        if (products == null || products.isEmpty()) return;
+        List<Long> productIds = products.stream().map(p -> p.id).filter(Objects::nonNull).toList();
+        if (productIds.isEmpty()) return;
+
+        List<ProductColorVariant> variants = entityManager.createQuery(
+                "select distinct cv from ProductColorVariant cv left join fetch cv.sizes where cv.product.id in :ids order by cv.id asc",
+                ProductColorVariant.class
+        ).setParameter("ids", productIds).getResultList();
+
+        Map<Long, Product.VariantPreview> previews = new HashMap<>();
+        for (ProductColorVariant color : variants) {
+            if (color.product == null || color.product.id == null || color.images == null || color.images.isEmpty()) continue;
+            ProductSizeVariant size = color.sizes == null ? null : color.sizes.stream()
+                    .filter(Objects::nonNull)
+                    .filter(s -> s.stock > 0)
+                    .findFirst()
+                    .orElse(null);
+            if (size == null) continue;
+
+            String image = color.images.stream().filter(Objects::nonNull).map(String::trim).filter(v -> !v.isBlank()).findFirst().orElse("");
+            if (image.isBlank()) continue;
+
+            Long productId = color.product.id;
+            if (previews.containsKey(productId)) continue;
+
+            Product.VariantPreview preview = new Product.VariantPreview();
+            preview.hasVariants = true;
+            preview.color = color.color;
+            preview.size = size.size;
+            preview.sku = size.sku;
+            preview.price = size.price;
+            preview.oldPrice = size.oldPrice;
+            preview.stock = size.stock;
+            preview.image = image;
+            previews.put(productId, preview);
+        }
+
+        for (Product product : products) {
+            product.variantPreview = previews.get(product.id);
+        }
     }
 
     private Product withImages(Product product) { List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id); product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList(); product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0)); return product; }
