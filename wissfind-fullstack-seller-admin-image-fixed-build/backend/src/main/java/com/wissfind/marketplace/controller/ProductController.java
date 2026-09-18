@@ -228,7 +228,7 @@ public class ProductController {
         }
     }
 
-    private Product withImages(Product product) { List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id); product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList(); product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0)); return product; }
+    private Product withImages(Product product) { List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id); product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList(); product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0)); populateVariantPreviews(List.of(product)); return product; }
 
     private void normalizeAndValidate(Product product, Long id) {
         if (product.name == null || product.name.isBlank()) throw new IllegalArgumentException("Product name is required"); if (product.category == null || product.category.isBlank()) throw new IllegalArgumentException("Category is required"); if (product.sku == null || product.sku.isBlank()) throw new IllegalArgumentException("SKU is required");
