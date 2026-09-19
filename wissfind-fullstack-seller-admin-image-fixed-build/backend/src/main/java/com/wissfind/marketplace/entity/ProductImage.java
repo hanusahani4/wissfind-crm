@@ -5,23 +5,16 @@ import jakarta.persistence.*;
 @Entity
 @Table(name = "product_image_data", uniqueConstraints = {
         @UniqueConstraint(name = "uk_product_image_hash", columnNames = {"product_id", "sha256"})
+}, indexes = {
+        @Index(name = "idx_product_images_product_order", columnList = "product_id, display_order")
 })
 public class ProductImage extends BaseEntity {
 
-    /**
-     * Do not eagerly load the parent Product for every image row. Image queries
-     * already know the product id and the controller accesses the relation only
-     * when it actually needs ownership information.
-     */
+    /** Do not eagerly load the parent Product for every image row. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     public Product product;
 
-    /**
-     * Legacy database image bytes. New uploads do not populate this field;
-     * images are stored in Cloudinary and only their metadata is kept here.
-     * Kept nullable so existing DB rows can continue to work during migration.
-     */
     @Lob
     @Basic(fetch = FetchType.LAZY)
     @Column(name = "image_data", nullable = true, columnDefinition = "LONGBLOB")
@@ -39,11 +32,9 @@ public class ProductImage extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     public int displayOrder;
 
-    /** Cloudinary public ID used when deleting/referencing the asset. */
     @Column(name = "cloudinary_public_id", length = 512)
     public String cloudinaryPublicId;
 
-    /** HTTPS CDN URL returned by Cloudinary. */
     @Column(name = "cloudinary_url", length = 2048)
     public String cloudinaryUrl;
 }

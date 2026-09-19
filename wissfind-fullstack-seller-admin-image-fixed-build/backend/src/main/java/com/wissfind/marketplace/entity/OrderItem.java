@@ -41,6 +41,12 @@ public class OrderItem extends BaseEntity {
     @Column(nullable = false, precision = 15, scale = 2)
     public BigDecimal price;
 
-    @Column(length = 120)
+    /**
+     * Variant snapshot can contain color, size, SKU, image and other
+     * checkout metadata. Keep enough room for the serialized value so a
+     * variant cart item cannot break order creation with MySQL truncation.
+     */
+    @Lob
+    @Column(name = "variant", columnDefinition = "TEXT")
     public String variant;
 }

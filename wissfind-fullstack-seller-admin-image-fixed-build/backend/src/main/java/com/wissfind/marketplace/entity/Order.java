@@ -7,7 +7,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "orders", uniqueConstraints = @UniqueConstraint(name = "uk_order_number", columnNames = "order_number"))
+@Table(name = "orders", uniqueConstraints = @UniqueConstraint(name = "uk_order_number", columnNames = "order_number"), indexes = {
+        @Index(name = "idx_orders_customer_created", columnList = "customer_id, created_at"),
+        @Index(name = "idx_orders_customer_status", columnList = "customer_id, delivery_status, created_at"),
+        @Index(name = "idx_orders_seller_created", columnList = "seller_id, created_at"),
+        @Index(name = "idx_orders_seller_status", columnList = "seller_id, delivery_status, created_at"),
+        @Index(name = "idx_orders_delivery_status", columnList = "delivery_status, created_at"),
+        @Index(name = "idx_orders_payment_status", columnList = "payment_status, created_at")
+})
 public class Order extends BaseEntity {
 
     @ManyToOne(optional = false)
@@ -36,6 +43,9 @@ public class Order extends BaseEntity {
     @Column(length = 2000)
     public String cancellationNote;
     public LocalDateTime cancelledAt;
+
+    /** Prevents duplicate Telegram delivery of the same order notification. */
+    public boolean telegramNotificationSent = false;
 
     /** Product snapshots belonging to this order. */
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

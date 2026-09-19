@@ -4,7 +4,7 @@ import { razorpayCheckoutGuard } from './core/razorpay-checkout.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home.component').then(m => m.HomeComponent) },
-  { path: 'product/:id', loadComponent: () => import('./pages/product-detail.component').then(m => m.ProductDetailComponent) },
+  { path: 'product/:id', loadComponent: () => import('./pages/product-detail-variant-wrapper.component').then(m => m.ProductDetailVariantWrapperComponent) },
   { path: 'login', loadComponent: () => import('./pages/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then(m => m.SignupComponent) },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then(m => m.ForgotPasswordComponent) },
@@ -19,6 +19,7 @@ export const routes: Routes = [
   { path: 'admin/homepage', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/homepage-management.component').then(m => m.HomepageManagementComponent) },
   { path: 'admin/shipping', canActivate: [roleGuard(['ADMIN'])], loadComponent: () => import('./pages/shipping-management.component').then(m => m.ShippingManagementComponent) },
   { path: 'seller/register', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/seller-register.component').then(m => m.SellerRegisterComponent) },
+  { path: 'seller/variant-products', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller-variant-products.component').then(m => m.SellerVariantProductsComponent) },
   { path: 'seller', canActivate: [roleGuard(['SELLER'])], loadComponent: () => import('./pages/seller.component').then(m => m.SellerComponent) },
   { path: '**', redirectTo: '' }
 ];

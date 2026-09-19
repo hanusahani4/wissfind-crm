@@ -14,18 +14,22 @@ import java.util.*;
 @RequestMapping("/api/seller/paged")
 @PreAuthorize("hasRole('SELLER')")
 public class SellerPageController {
-    private final ProductRepository products; private final ProductImageRepository imageRepo; private final OrderRepository orders; private final ReturnRequestRepository returns;
+    private final ProductRepository products; private final ProductImageRepository imageRepo; private final ProductColorVariantRepository colorVariants; private final OrderRepository orders; private final ReturnRequestRepository returns;
     private final CouponRepository coupons; private final PayoutRepository payouts; private final ReviewRepository reviews;
     private final CommissionRepository commissions; private final DisputeRepository disputes;
-    public SellerPageController(ProductRepository products,ProductImageRepository imageRepo,OrderRepository orders,ReturnRequestRepository returns,CouponRepository coupons,
+    public SellerPageController(ProductRepository products,ProductImageRepository imageRepo,ProductColorVariantRepository colorVariants,OrderRepository orders,ReturnRequestRepository returns,CouponRepository coupons,
                                 PayoutRepository payouts,ReviewRepository reviews,CommissionRepository commissions,DisputeRepository disputes){
-        this.products=products;this.imageRepo=imageRepo;this.orders=orders;this.returns=returns;this.coupons=coupons;this.payouts=payouts;this.reviews=reviews;this.commissions=commissions;this.disputes=disputes;
+        this.products=products;this.imageRepo=imageRepo;this.colorVariants=colorVariants;this.orders=orders;this.returns=returns;this.coupons=coupons;this.payouts=payouts;this.reviews=reviews;this.commissions=commissions;this.disputes=disputes;
     }
     private Pageable page(int page,int size,String sort){return PageRequest.of(Math.max(0,page),Math.min(50,Math.max(1,size)),Sort.by(Sort.Direction.DESC,sort));}
-    @GetMapping("/products") @Transactional(readOnly=true)
+    @GetMapping("/products") @Transactional
     public Page<Product> products(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="") String search){
         Specification<Product> spec=Specification.where(SearchSpec.<Product>eqPath("seller.id",CurrentUser.id())).and(SearchSpec.<Product>contains(search,"name","sku","brand","category","subcategory","status"));
-        var result=products.findAll(spec,page(page,size,"createdAt")); populateImages(result.getContent()); return result;
+        var result=products.findAll(spec,page(page,size,"createdAt"));
+        populateImages(result.getContent());
+        syncVariantStock(result.getContent());
+        products.saveAll(result.getContent());
+        return result;
     }
     @GetMapping("/orders") @Transactional(readOnly=true)
     public Page<Order> orders(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="") String search){
@@ -61,6 +65,22 @@ public class SellerPageController {
     public Page<Dispute> disputes(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="") String search){
         Specification<Dispute> spec=Specification.where(SearchSpec.<Dispute>eqPath("order.seller.id",CurrentUser.id())).and(SearchSpec.<Dispute>contains(search,"reason","evidence","response","status","order.orderNumber","order.customer.name"));
         return disputes.findAll(spec,page(page,size,"createdAt"));
+    }
+    private void syncVariantStock(List<Product> rows){
+        if(rows==null||rows.isEmpty()) return;
+        for(Product p:rows){
+            if(p==null||p.id==null) continue;
+            List<ProductColorVariant> variants=colorVariants.findByProductIdOrderByIdAsc(p.id);
+            if(variants.isEmpty()) continue;
+            int total=0;
+            for(ProductColorVariant color:variants){
+                if(color.sizes!=null){
+                    for(ProductSizeVariant size:color.sizes) total+=Math.max(0,size.stock);
+                }
+            }
+            p.stock=total;
+            p.status=total>0?Product.Status.LIVE:Product.Status.OUT_OF_STOCK;
+        }
     }
     private void populateImages(List<Product> rows){
         if(rows==null||rows.isEmpty()) return;
