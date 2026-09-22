@@ -66,17 +66,24 @@ export class ProductService {
   async reload(){this.loadedInternal=false;this.loadingInternal=false;this.loaded.set(false);this.loading.set(false);this.homePages.clear();this.catalogueTotal.set(0);await this.load();}
   async getByIdAsync(id:string|number,signal?:AbortSignal):Promise<Product|undefined>{
   const productId=String(id);
-  let cached=this.products.find(x=>String(x.id)===productId);
-  if(!cached) cached=this.readCachedProduct(productId);
-  if(cached){
-    const existing=this.products.find(x=>String(x.id)===productId);
-    if(existing) Object.assign(existing,cached); else this.products.push(cached);
-    this.productsVersion.update(v=>v+1);
-    void this.refreshProduct(productId,signal).catch(()=>{});
-    return cached;
+  // Product detail must always start from the current backend response.
+  // The backend owns variant selection and image ordering, so rendering a
+  // stale cached catalogue object here can briefly show parent/thumbnail data.
+  try{
+    return await this.refreshProduct(productId,signal);
+  }catch{
+    // Only fall back to cache when the fresh detail request fails.
+    if(signal?.aborted) return undefined;
+    const cached=this.products.find(x=>String(x.id)===productId) || this.readCachedProduct(productId);
+    if(cached){
+      const existing=this.products.find(x=>String(x.id)===productId);
+      if(existing) Object.assign(existing,cached); else this.products.push(cached);
+      this.productsVersion.update(v=>v+1);
+      return cached;
+    }
+    try{await this.load(signal);}catch{}
+    return this.products.find(p=>String(p.id)===productId);
   }
-  try{return await this.refreshProduct(productId,signal);}
-  catch{if(!signal?.aborted){try{await this.load(signal);}catch{}}return this.products.find(p=>String(p.id)===productId);}
 }
   private async refreshProduct(productId:string,signal?:AbortSignal):Promise<Product>{
     const data:any=await this.api.get(`/products/${encodeURIComponent(productId)}`,signal);
