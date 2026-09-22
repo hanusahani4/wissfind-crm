@@ -87,13 +87,29 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.product = await this.products.getByIdAsync(id);
+
+    // Home already has the server-selected catalogue product. Render that
+    // immediately through Router state, while the detail endpoint refreshes
+    // the authoritative data in the background.
+    const stateProduct = typeof history !== 'undefined' ? (history.state?.product as any) : undefined;
+    if (stateProduct && String(stateProduct.id) === String(id)) {
+      this.product = this.prepareNavigationProduct(stateProduct);
+      this.selectedImage = this.product.images?.[0] || this.product.image || '';
+      this.startAutoSlide();
+      this.cdr.markForCheck();
+    }
+
+    const freshProduct = await this.products.getByIdAsync(id);
+    if (freshProduct) {
+      this.product = freshProduct;
+      this.selectedImage = this.product.images?.[0] || this.product.image || '';
+      this.startAutoSlide();
+    }
     if (!this.product) { this.router.navigateByUrl('/'); return; }
-    this.selectedImage = this.product.images?.[0] || this.product.image || '';
+
     const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
     this.facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
     this.xUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(this.product.name || '')}`;
-    this.startAutoSlide();
     this.cdr.markForCheck();
 
     // Secondary data must never block the first product paint.
@@ -110,6 +126,21 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     this.aiCons = this.averageRating < 4 ? 'Some customers report room for improvement.' : 'No recurring issue is dominant.';
     this.aiVerdict = this.averageRating >= 4 ? 'Generally positive customer feedback.' : 'Review the detailed feedback before buying.';
     this.cdr.markForCheck();
+  }
+
+  private prepareNavigationProduct(raw: any): any {
+    const product = { ...raw };
+    const vp = product.variantPreview?.hasVariants ? product.variantPreview : undefined;
+    if (vp?.image) {
+      product.image = vp.image;
+      product.images = [vp.image];
+      product.price = Number(vp.price ?? product.price ?? 0);
+      product.oldPrice = vp.oldPrice == null ? product.oldPrice : Number(vp.oldPrice);
+      product.stock = Number(vp.stock ?? product.stock ?? 0);
+    } else {
+      product.images = Array.isArray(product.images) ? [...product.images] : (product.image ? [product.image] : []);
+    }
+    return product;
   }
 
   ngOnDestroy() { this.stopAutoSlide(); }
