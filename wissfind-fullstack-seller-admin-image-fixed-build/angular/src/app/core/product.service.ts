@@ -11,8 +11,8 @@ export class ProductService {
   readonly catalogueTotal = signal(0);
   private loadedInternal = false;
   private loadingInternal = false;
-  private readonly cachePrefix='wissfind-product-cache:v2:';
-  private readonly homeCacheKey='wissfind-home-catalogue-v2';
+  private readonly cachePrefix='wissfind-product-cache:v3:';
+  private readonly homeCacheKey='wissfind-home-catalogue-v3';
   private readonly cacheTtlMs=10*60*1000;
   private refreshTimer?: number;
   private refreshStarted=false;
