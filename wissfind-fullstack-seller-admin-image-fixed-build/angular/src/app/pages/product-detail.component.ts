@@ -56,6 +56,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   reviews = inject(ReviewService);
   private cdr = inject(ChangeDetectorRef);
+  private detailRequestId = 0;
   product: any;
   relatedProducts: any[] = [];
   categoryProducts: any[] = [];
@@ -86,36 +87,61 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
+    this.route.paramMap.subscribe(params => {
+      const id = Number(params.get('id'));
+      if (!Number.isFinite(id) || id <= 0) return;
+      const stateProduct = typeof history !== 'undefined' ? (history.state?.product as any) : undefined;
+      void this.loadProductDetail(id, stateProduct);
+    });
+  }
 
-    // Home already has the server-selected catalogue product. Render that
-    // immediately through Router state, while the detail endpoint refreshes
-    // the authoritative data in the background.
-    const stateProduct = typeof history !== 'undefined' ? (history.state?.product as any) : undefined;
-    if (stateProduct && String(stateProduct.id) === String(id)) {
+  private async loadProductDetail(id: number, stateProduct?: any) {
+    const requestId = ++this.detailRequestId;
+
+    // Clear the previous product immediately so a reused route can never keep
+    // showing the old related product while the new one is loading.
+    this.stopAutoSlide();
+    this.product = undefined;
+    this.relatedProducts = [];
+    this.reviewList = [];
+    this.selectedImage = '';
+    this.selectedIndex = 0;
+    this.cdr.markForCheck();
+
+    const sameStateProduct = stateProduct && String(stateProduct.id) === String(id);
+    if (sameStateProduct) {
       this.product = this.prepareNavigationProduct(stateProduct);
       this.selectedImage = this.product.images?.[0] || this.product.image || '';
       this.startAutoSlide();
       this.cdr.markForCheck();
     }
 
-    const freshProduct = await this.products.getByIdAsync(id);
-    if (freshProduct) {
-      this.product = freshProduct;
-      this.selectedImage = this.product.images?.[0] || this.product.image || '';
-      this.startAutoSlide();
+    try {
+      const freshProduct = await this.products.getByIdAsync(id);
+      if (requestId !== this.detailRequestId) return;
+      if (freshProduct) {
+        this.product = freshProduct;
+        this.selectedImage = this.product.images?.[0] || this.product.image || '';
+        this.startAutoSlide();
+        this.cdr.markForCheck();
+      }
+    } catch {}
+
+    if (requestId !== this.detailRequestId) return;
+    if (!this.product) {
+      void this.router.navigateByUrl('/');
+      return;
     }
-    if (!this.product) { this.router.navigateByUrl('/'); return; }
 
     const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
     this.facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
     this.xUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(this.product.name || '')}`;
     this.cdr.markForCheck();
 
-    // Secondary data must never block the first product paint.
     const relatedPromise = this.products.getRelated(this.product.category, id).catch(() => []);
     const reviewsPromise = this.reviews.getReviews(id).catch(() => []);
     const [related, reviews] = await Promise.all([relatedPromise, reviewsPromise]);
+    if (requestId !== this.detailRequestId) return;
     this.relatedProducts = related.slice(0, 4);
     this.reviewList = reviews;
     this.averageRating = this.reviewList.length
@@ -149,7 +175,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return product;
   }
 
-  ngOnDestroy() { this.stopAutoSlide(); }
+  ngOnDestroy() { this.detailRequestId++; this.stopAutoSlide(); }
   startAutoSlide() { this.stopAutoSlide(); if (this.isAutoPlaying) this.timer = setInterval(() => this.nextImage(), 4500); }
   stopAutoSlide() { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
   pauseAutoSlide() { this.stopAutoSlide(); }
