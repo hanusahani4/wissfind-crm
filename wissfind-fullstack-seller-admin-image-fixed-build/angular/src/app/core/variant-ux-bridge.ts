@@ -57,21 +57,9 @@ export class VariantUxBridge {
   }
 
   private static installHomeVariantNavigation(): void {
-    if (location.pathname !== '/') return;
-    if (document.body.dataset['variantHomeNav'] === '1') return;
-    document.body.dataset['variantHomeNav'] = '1';
-    document.addEventListener('click', event => {
-      const target = event.target as HTMLElement | null;
-      const link = target?.closest('.product-card .image-wrap') as HTMLAnchorElement | null;
-      if (!link || !link.href) return;
-      const productId = this.productIdFromHref(link.href);
-      if (!productId) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      // Navigation must never wait for the variants API. Product detail loads
-      // its variant data after the route is rendered, keeping clicks instant.
-      window.location.assign(link.href);
-    }, true);
+    // Let Angular RouterLink perform the navigation. The home card now passes
+    // the already-loaded product through router state, so detail can render
+    // immediately without a full-page reload or an extra wait.
   }
 
   private static installDetailVariantSelection(): void {
