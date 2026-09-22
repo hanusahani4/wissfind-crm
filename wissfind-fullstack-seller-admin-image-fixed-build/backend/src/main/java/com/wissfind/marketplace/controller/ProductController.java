@@ -247,7 +247,24 @@ public class ProductController {
         }
     }
 
-    private Product withImages(Product product) { List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id); product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList(); product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0)); populateVariantPreviews(List.of(product)); return product; }
+    private Product withImages(Product product) {
+        List<ProductImage> storedImages = imageRepo.findByProductIdOrderByDisplayOrderAsc(product.id);
+        product.images = storedImages.stream().map(x -> imageDisplayUrl(product.id, x)).toList();
+        product.image = storedImages.isEmpty() ? null : imageDisplayUrl(product.id, storedImages.get(0));
+
+        // Product-detail responses must start with the server-selected customer
+        // variant image. Parent images are deliberately not mixed into the
+        // initial detail gallery; variant selection can hydrate its own images
+        // afterwards without a parent-image flash.
+        populateVariantPreviews(List.of(product));
+        if (product.variantPreview != null
+                && product.variantPreview.image != null
+                && !product.variantPreview.image.isBlank()) {
+            product.images = List.of(product.variantPreview.image);
+            product.image = product.variantPreview.image;
+        }
+        return product;
+    }
 
     private void normalizeAndValidate(Product product, Long id) {
         if (product.name == null || product.name.isBlank()) throw new IllegalArgumentException("Product name is required"); if (product.category == null || product.category.isBlank()) throw new IllegalArgumentException("Category is required"); if (product.sku == null || product.sku.isBlank()) throw new IllegalArgumentException("SKU is required");
