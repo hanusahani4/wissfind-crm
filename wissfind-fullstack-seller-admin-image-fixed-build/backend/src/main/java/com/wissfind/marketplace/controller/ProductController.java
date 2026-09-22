@@ -121,28 +121,33 @@ public class ProductController {
     public void adminDelete(@PathVariable Long id) { deleteCloudinaryAssets(imageRepo.findByProductIdOrderByDisplayOrderAsc(id)); imageRepo.deleteByProductId(id); repo.deleteById(id); }
 
     @PatchMapping("/{id}/stock") @PreAuthorize("hasRole('SELLER')")
-    public Product stock(@PathVariable Long id, @RequestParam int quantity) { Product product = owned(id); product.stock = Math.max(0, product.stock + quantity); if (product.stock == 0) product.status = Product.Status.OUT_OF_STOCK; else if (product.status == Product.Status.OUT_OF_STOCK) product.status = Product.Status.LIVE; return withImages(repo.save(product)); }
+    public Product stock(@PathVariable Long id, @RequestParam int quantity) {
+        Product product = owned(id);
+        product.stock = Math.max(0, product.stock + quantity);
+        if (product.stock > 0 && product.status == Product.Status.OUT_OF_STOCK) product.status = Product.Status.LIVE;
+        return withImages(repo.save(product));
+    }
 
     private boolean customerAvailable(Product product) {
-        if (product == null || product.status != Product.Status.LIVE) return false;
-        if (product.stock > 0) return true;
-        if (product.id == null) return false;
-        return entityManager.createQuery("select count(sv.id) from ProductColorVariant cv join cv.sizes sv where cv.product.id = :productId and sv.stock > 0", Long.class).setParameter("productId", product.id).getSingleResult() > 0;
+        // Visibility is controlled by lifecycle status. Stock only controls
+        // whether the customer can purchase the product.
+        return product != null && product.status == Product.Status.LIVE;
     }
 
     private org.springframework.data.jpa.domain.Specification<Product> customerAvailabilitySpec() {
-        return (root, query, cb) -> {
-            var variantSubquery = query.subquery(Long.class);
-            var colorRoot = variantSubquery.from(ProductColorVariant.class);
-            var sizeJoin = colorRoot.join("sizes");
-            variantSubquery.select(cb.literal(1L)).where(cb.equal(colorRoot.get("product").get("id"), root.get("id")), cb.greaterThan(sizeJoin.get("stock"), 0));
-            return cb.and(cb.equal(root.get("status"), Product.Status.LIVE), cb.or(cb.greaterThan(root.get("stock"), 0), cb.exists(variantSubquery)));
-        };
+        // Keep all LIVE products in the catalogue. A zero-stock product can
+        // remain visible and be rendered as unavailable for purchase.
+        return (root, query, cb) -> cb.equal(root.get("status"), Product.Status.LIVE);
     }
 
     private User currentSeller() { return users.findById(CurrentUser.id()).orElseThrow(); }
     private Product.Status statusFor(int stock) { return stock <= 0 ? Product.Status.OUT_OF_STOCK : Product.Status.PENDING; }
-    private Product.Status statusForUpdate(Product.Status oldStatus, int stock) { if (stock <= 0) return Product.Status.OUT_OF_STOCK; if (oldStatus == Product.Status.LIVE || oldStatus == Product.Status.OUT_OF_STOCK) return Product.Status.LIVE; return Product.Status.PENDING; }
+    private Product.Status statusForUpdate(Product.Status oldStatus, int stock) {
+        if (oldStatus == Product.Status.LIVE) return Product.Status.LIVE;
+        if (stock <= 0) return Product.Status.OUT_OF_STOCK;
+        if (oldStatus == Product.Status.OUT_OF_STOCK) return Product.Status.LIVE;
+        return Product.Status.PENDING;
+    }
 
     private List<MultipartFile> merge(List<MultipartFile> files, List<MultipartFile> images) { List<MultipartFile> result = new ArrayList<>(); if (files != null) result.addAll(files); if (images != null) result.addAll(images); return result.stream().filter(Objects::nonNull).filter(f -> !f.isEmpty()).toList(); }
 
