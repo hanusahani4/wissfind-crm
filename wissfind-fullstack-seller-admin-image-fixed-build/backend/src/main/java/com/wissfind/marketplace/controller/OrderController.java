@@ -54,7 +54,7 @@ public class OrderController {
     public List<Order> mine() { return repo.findByCustomerIdOrderByCreatedAtDesc(CurrentUser.id()); }
 
     @GetMapping("/mine/paged")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Order> minePaged(
             @RequestParam(defaultValue = "0") int page,
@@ -73,7 +73,7 @@ public class OrderController {
     }
 
     @GetMapping("/mine/summary")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
     @Transactional(readOnly = true)
     public Map<String, Object> mineSummary() {
         Long customerId = CurrentUser.id();
@@ -98,7 +98,7 @@ public class OrderController {
     public List<Order> all() { return repo.findAllByOrderByCreatedAtDesc(); }
 
     @PostMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
     @Transactional
     public Order create(@RequestBody Map<String, Object> body) {
         User customer = users.findById(CurrentUser.id()).orElseThrow();
@@ -204,7 +204,7 @@ public class OrderController {
     private String formatAddress(CustomerAddress a) { return String.join(", ", java.util.stream.Stream.of(a.fullName, a.phone, a.line1, a.line2, a.city, a.district, a.state, a.pincode, a.country).filter(v -> v != null && !v.isBlank()).toList()); }
 
     @PatchMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
     @Transactional
     public Order cancel(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
         Order order = repo.findById(id).orElseThrow(() -> new IllegalArgumentException("Order not found"));
