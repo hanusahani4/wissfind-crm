@@ -35,6 +35,11 @@ public class SecurityConfig {
                     return config;
                 }))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, ex) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required or session expired.\"}");
+                }))
                 .authorizeHttpRequests(a -> a
                         // Public API endpoints used by the storefront.
                         .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
