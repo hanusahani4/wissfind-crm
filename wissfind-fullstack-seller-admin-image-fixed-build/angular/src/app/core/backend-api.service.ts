@@ -38,7 +38,9 @@ export class BackendApiService {
   }
 
   private handleError(error: unknown): never {
-    if (error instanceof HttpErrorResponse && error.status === 401) {
+    if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
+      // Treat an unauthorized/forbidden session response as an invalid session
+      // for this storefront so the user is never left in a broken signed-in state.
       this.expireSession();
     }
     throw error;
