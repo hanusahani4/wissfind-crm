@@ -49,7 +49,7 @@ public class OrderController {
     }
 
     @GetMapping("/mine")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
     @Transactional(readOnly = true)
     public List<Order> mine() { return repo.findByCustomerIdOrderByCreatedAtDesc(CurrentUser.id()); }
 
