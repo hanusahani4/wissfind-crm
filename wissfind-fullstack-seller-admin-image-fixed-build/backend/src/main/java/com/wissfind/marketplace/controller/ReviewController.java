@@ -20,7 +20,7 @@ public class ReviewController {
   }).toList();
  }
 
- @GetMapping("/product/{productId}/eligibility") @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
+ @GetMapping("/product/{productId}/eligibility") @PreAuthorize("hasRole('CUSTOMER')")
  public Map<String,Object> eligibility(@PathVariable Long productId){
   Long customerId=CurrentUser.id();
   boolean purchased=orders.countPurchasedProduct(customerId,productId)>0;
@@ -31,7 +31,7 @@ public class ReviewController {
  @GetMapping("/seller") @PreAuthorize("hasRole('SELLER')") public List<Map<String,Object>> seller(){return reviews.findByProductSellerIdOrderByCreatedAtDesc(CurrentUser.id()).stream().map(this::mapReview).toList();}
  @GetMapping @PreAuthorize("hasRole('ADMIN')") public List<Map<String,Object>> all(){return reviews.findAll().stream().map(this::mapReview).toList();}
 
- @PostMapping("/product/{productId}") @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
+ @PostMapping("/product/{productId}") @PreAuthorize("hasRole('CUSTOMER')")
  public Map<String,Object> add(@PathVariable Long productId,@RequestBody ReviewRequest req){
   if(req.rating()<1||req.rating()>5||req.text()==null||req.text().isBlank())throw new IllegalArgumentException("Rating and review text are required");
   Product p=products.findById(productId).orElseThrow(); User u=users.findById(CurrentUser.id()).orElseThrow();
@@ -41,7 +41,7 @@ public class ReviewController {
   Review saved=reviews.save(r); recalculate(p); products.save(p); return Map.of("review",saved);
  }
 
- @PatchMapping("/{id}/like") @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')") public void like(@PathVariable Long id){Review r=reviews.findById(id).orElseThrow();r.likes++;reviews.save(r);}
+ @PatchMapping("/{id}/like") @PreAuthorize("hasRole('CUSTOMER')") public void like(@PathVariable Long id){Review r=reviews.findById(id).orElseThrow();r.likes++;reviews.save(r);}
 
  private void recalculate(Product p) {
   List<Review> all=reviews.findByProductIdOrderByCreatedAtDesc(p.id);
