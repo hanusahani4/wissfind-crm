@@ -20,7 +20,7 @@ public class ReviewController {
   }).toList();
  }
 
- @GetMapping("/product/{productId}/eligibility") @PreAuthorize("hasRole('CUSTOMER')")
+ @GetMapping("/product/{productId}/eligibility") @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
  public Map<String,Object> eligibility(@PathVariable Long productId){
   Long customerId=CurrentUser.id();
   boolean purchased=orders.countPurchasedProduct(customerId,productId)>0;
