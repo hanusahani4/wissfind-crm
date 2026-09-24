@@ -1,7 +1,7 @@
 package com.wissfind.marketplace.controller;
 import com.wissfind.marketplace.entity.*; import com.wissfind.marketplace.repo.*; import com.wissfind.marketplace.service.CurrentUser; import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.web.bind.annotation.*; import java.util.*;
 @RestController @RequestMapping("/api/returns") public class ReturnController { final ReturnRequestRepository repo; final OrderRepository orders; final UserRepository users; public ReturnController(ReturnRequestRepository r,OrderRepository o,UserRepository u){repo=r;orders=o;users=u;}
- @GetMapping("/mine") @PreAuthorize("hasRole('CUSTOMER')") public List<ReturnRequest> mine(){return repo.findAll().stream().filter(x->x.customer.id.equals(CurrentUser.id())).toList();}
+ @GetMapping("/mine") @PreAuthorize("hasAnyRole('CUSTOMER','SELLER')") public List<ReturnRequest> mine(){return repo.findAll().stream().filter(x->x.customer.id.equals(CurrentUser.id())).toList();}
  @GetMapping("/mine/paged") @PreAuthorize("hasRole('CUSTOMER')") @org.springframework.transaction.annotation.Transactional(readOnly=true)
  public org.springframework.data.domain.Page<ReturnRequest> minePaged(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="All") String filter){
   int p=Math.max(0,page), s=Math.min(50,Math.max(1,size));
