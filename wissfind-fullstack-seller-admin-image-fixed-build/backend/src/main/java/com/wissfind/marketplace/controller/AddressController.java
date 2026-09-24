@@ -16,7 +16,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/addresses")
-@PreAuthorize("hasAnyRole('CUSTOMER','SELLER')")
+@PreAuthorize("hasRole('CUSTOMER')")
 public class AddressController {
     private static final Logger log = LoggerFactory.getLogger(AddressController.class);
 
