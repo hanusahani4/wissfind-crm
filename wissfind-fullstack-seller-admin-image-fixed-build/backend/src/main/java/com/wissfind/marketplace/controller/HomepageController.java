@@ -49,7 +49,10 @@ public class HomepageController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public Map<String, Object> homepage() {
+    public Map<String, Object> homepage(jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
         List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
         List<Map<String, Object>> result = sections.findByActiveTrueOrderByDisplayOrderAsc().stream().filter(this::withinSchedule)
                 .map(section -> responseSection(section, selectProducts(section, all, configured, analytics))).toList();
