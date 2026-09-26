@@ -5,6 +5,7 @@ import { AuthService } from './core/auth.service';
 import { CartService } from './core/cart.service';
 import { BackendApiService } from './core/backend-api.service';
 import { WishlistService } from './core/wishlist.service';
+import { HomepageSectionsComponent } from './pages/homepage-sections.component';
 
 @Component({
   selector: 'app-root', standalone: true,
