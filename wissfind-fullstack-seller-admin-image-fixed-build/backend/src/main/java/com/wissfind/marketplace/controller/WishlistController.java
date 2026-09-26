@@ -2,6 +2,8 @@ package com.wissfind.marketplace.controller;
 
 import com.wissfind.marketplace.entity.Product;
 import com.wissfind.marketplace.entity.ProductImage;
+import com.wissfind.marketplace.entity.ProductColorVariant;
+import com.wissfind.marketplace.entity.ProductSizeVariant;
 import com.wissfind.marketplace.entity.User;
 import com.wissfind.marketplace.entity.WishlistItem;
 import com.wissfind.marketplace.repo.ProductImageRepository;
@@ -25,6 +27,7 @@ public class WishlistController {
     private final ProductRepository products;
     private final ProductImageRepository images;
     private final UserRepository users;
+    private final EntityManager entityManager;
 
     public WishlistController(WishlistItemRepository wishlist, ProductRepository products,
                               ProductImageRepository images, UserRepository users) {
@@ -85,17 +88,44 @@ public class WishlistController {
 
     private WishlistProduct toView(Product p) {
         List<ProductImage> stored = images.findByProductIdOrderByDisplayOrderAsc(p.id);
-        String image = p.image;
-        if ((image == null || image.isBlank()) && !stored.isEmpty()) {
-            ProductImage first = stored.get(0);
-            image = first.cloudinaryUrl != null && !first.cloudinaryUrl.isBlank()
-                    ? first.cloudinaryUrl
-                    : "/api/products/" + p.id + "/images/" + first.id;
+        String image = stored.isEmpty() ? p.image : imageDisplayUrl(p.id, stored.get(0));
+        double price = p.price;
+        double oldPrice = p.oldPrice;
+        Double salePrice = p.salePrice;
+        int stock = Math.max(0, p.stock);
+
+        // Variant products can have zero parent stock even though an individual
+        // color/size is purchasable. Resolve the same first usable variant used
+        // by the storefront so Wishlist shows the correct image, price and stock.
+        List<ProductColorVariant> variants = entityManager.createQuery(
+                "select distinct cv from ProductColorVariant cv left join fetch cv.sizes where cv.product.id = :id order by cv.id asc",
+                ProductColorVariant.class
+        ).setParameter("id", p.id).getResultList();
+        for (ProductColorVariant colorVariant : variants) {
+            if (colorVariant.images == null || colorVariant.images.isEmpty()) continue;
+            ProductSizeVariant chosen = colorVariant.sizes == null ? null : colorVariant.sizes.stream()
+                    .filter(Objects::nonNull)
+                    .filter(v -> v.stock > 0)
+                    .findFirst()
+                    .orElse(null);
+            if (chosen == null) continue;
+            image = colorVariant.images.get(0);
+            price = chosen.price;
+            oldPrice = chosen.oldPrice;
+            salePrice = null;
+            stock = Math.max(0, chosen.stock);
+            break;
         }
+
         return new WishlistProduct(
-                p.id, p.name, p.category, p.subcategory, p.price, p.oldPrice,
-                p.salePrice, image, p.stock, p.rating, p.reviews
+                p.id, p.name, p.category, p.subcategory, price, oldPrice,
+                salePrice, image, stock, p.rating, p.reviews
         );
+    }
+
+    private String imageDisplayUrl(Long productId, ProductImage image) {
+        if (image.cloudinaryUrl != null && !image.cloudinaryUrl.isBlank()) return image.cloudinaryUrl;
+        return "/api/products/" + productId + "/images/" + image.id;
     }
 
     public record WishlistProduct(Long id, String name, String category, String subcategory,
