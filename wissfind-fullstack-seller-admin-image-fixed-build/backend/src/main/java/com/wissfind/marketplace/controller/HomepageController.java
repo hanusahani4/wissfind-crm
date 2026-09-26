@@ -50,9 +50,9 @@ public class HomepageController {
     @GetMapping
     @Transactional(readOnly = true)
     public Map<String, Object> homepage() {
-        List<Product> all = liveProducts(); Analytics analytics = analytics();
+        List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
         List<Map<String, Object>> result = sections.findByActiveTrueOrderByDisplayOrderAsc().stream().filter(this::withinSchedule)
-                .map(section -> responseSection(section, selectProducts(section, all, analytics))).toList();
+                .map(section -> responseSection(section, selectProducts(section, all, configured, analytics))).toList();
         return Map.of("sections", result);
     }
 
@@ -60,9 +60,9 @@ public class HomepageController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public Map<String, Object> adminData() {
-        List<Product> all = liveProducts(); Analytics analytics = analytics();
+        List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
         List<Map<String, Object>> rows = sections.findAllByOrderByDisplayOrderAsc().stream()
-                .map(s -> adminSection(s, selectProducts(s, all, analytics))).toList();
+                .map(s -> adminSection(s, selectProducts(s, all, configured, analytics))).toList();
         List<Map<String, Object>> categoryRows = categories.findAll().stream().map(c -> {
             Map<String, Object> row = new LinkedHashMap<>(); row.put("id", c.id); row.put("name", c.name); row.put("slug", c.slug); row.put("active", c.active); return row;
         }).toList();
@@ -106,7 +106,7 @@ public class HomepageController {
     private Analytics analytics() { return new Analytics(grouped(views.countGroupedByProduct()), grouped(cartAdds.countGroupedByProduct())); }
     private Map<Long, Long> grouped(List<Object[]> rows) { Map<Long, Long> result = new HashMap<>(); for (Object[] row : rows) if (row != null && row.length >= 2 && row[0] != null) result.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue()); return result; }
 
-    private List<Product> selectProducts(HomepageSection section, List<Product> all, Analytics a) {
+    private List<Product> selectProducts(HomepageSection section, List<Product> all, List<Product> configured, Analytics a) {
         List<Product> automatic = switch (section.sectionType) {
             case TRENDING -> all.stream().sorted(Comparator.comparingDouble((Product p) -> trendingScore(p, a)).reversed()).toList();
             case BEST_SELLERS -> all.stream().sorted(Comparator.comparingInt((Product p) -> p.sales).reversed()).toList();
@@ -116,8 +116,13 @@ public class HomepageController {
             case TOP_RATED -> all.stream().filter(p -> p.rating >= 4.0 && p.reviews >= 5)
                     .sorted(Comparator.comparingDouble((Product p) -> p.rating).reversed().thenComparing(Comparator.comparingInt((Product p) -> p.reviews).reversed())).toList();
         };
-        List<Long> manualIds = parseIds(section.manualProductIds); Map<Long, Product> byId = all.stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
-        List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList(); int max = Math.max(1, Math.min(30, section.maxProducts));
+        List<Long> manualIds = parseIds(section.manualProductIds);
+        Map<Long, Product> byId = configured.stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
+        // An explicit manual selection is authoritative: configured products are
+        // rendered even when their stock is currently zero. Automatic sections
+        // continue to use the customer-visible LIVE catalogue above.
+        List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList();
+        int max = Math.max(1, Math.min(30, section.maxProducts));
         if (section.productMode == HomepageSection.ProductMode.MANUAL) return manual.stream().limit(max).toList();
         if (section.productMode == HomepageSection.ProductMode.HYBRID) {
             Set<Long> selected = manual.stream().map(p -> p.id).collect(Collectors.toSet()); List<Product> merged = new ArrayList<>(manual);
