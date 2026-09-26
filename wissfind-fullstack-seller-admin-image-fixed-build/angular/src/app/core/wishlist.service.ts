@@ -29,7 +29,10 @@ export class WishlistService {
     this.loading = (async () => {
       try {
         const rows: any = await this.api.get('/wishlist');
-        const items = Array.isArray(rows) ? rows as WishlistProduct[] : [];
+        const rawItems = Array.isArray(rows) ? rows : Array.isArray(rows?.content) ? rows.content : [];
+        const items = rawItems
+          .map((row: any) => this.normalize(row))
+          .filter((item: WishlistProduct | null): item is WishlistProduct => !!item && Number.isFinite(item.id) && item.id > 0);
         this.items.set(items);
         this.count.set(items.length);
         this.loaded = true;
@@ -48,6 +51,27 @@ export class WishlistService {
     } catch {}
   }
 
+  private normalize(row: any): WishlistProduct | null {
+    const value = row?.product ?? row?.wishlistProduct ?? row;
+    const id = Number(value?.id ?? value?.productId ?? row?.productId);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    const images = Array.isArray(value?.images) ? value.images : [];
+    const image = value?.image || value?.imageUrl || images[0] || row?.image || row?.imageUrl || '';
+    return {
+      id,
+      name: String(value?.name ?? row?.name ?? ''),
+      category: String(value?.category ?? row?.category ?? ''),
+      subcategory: value?.subcategory ?? row?.subcategory ?? '',
+      price: Number(value?.price ?? row?.price ?? 0),
+      oldPrice: Number(value?.oldPrice ?? row?.oldPrice ?? 0),
+      salePrice: value?.salePrice ?? row?.salePrice ?? null,
+      image,
+      stock: Math.max(0, Number(value?.stock ?? row?.stock ?? 0)),
+      rating: Number(value?.rating ?? row?.rating ?? 0),
+      reviews: Number(value?.reviews ?? row?.reviews ?? 0)
+    };
+  }
+
   isWishlisted(productId: string | number): boolean {
     return this.items().some(item => String(item.id) === String(productId));
   }
@@ -57,7 +81,10 @@ export class WishlistService {
       await this.api.post('/wishlist/' + productId, {});
       if (!this.isWishlisted(productId)) {
         const rows: any = await this.api.get('/wishlist');
-        const items = Array.isArray(rows) ? rows as WishlistProduct[] : this.items();
+        const rawItems = Array.isArray(rows) ? rows : Array.isArray(rows?.content) ? rows.content : [];
+        const items = rawItems
+          .map((row: any) => this.normalize(row))
+          .filter((item: WishlistProduct | null): item is WishlistProduct => !!item && Number.isFinite(item.id) && item.id > 0);
         this.items.set(items);
         this.count.set(items.length);
       }
