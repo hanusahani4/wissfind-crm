@@ -102,7 +102,7 @@ public class HomepageController {
         HomepageSection s = new HomepageSection(); s.title = title; s.slug = slug; s.sectionType = type; s.displayOrder = order;
         s.productMode = HomepageSection.ProductMode.AUTOMATIC; s.maxProducts = 10; s.active = true; s.showViewAll = true; sections.save(s);
     }
-    private List<Product> liveProducts() { return products.findAll().stream().filter(p -> p.status == Product.Status.LIVE && p.stock > 0).collect(Collectors.toCollection(ArrayList::new)); }
+    private List<Product> liveProducts() { return products.findAll().stream().filter(p -> p.status == Product.Status.LIVE).collect(Collectors.toCollection(ArrayList::new)); }
     private Analytics analytics() { return new Analytics(grouped(views.countGroupedByProduct()), grouped(cartAdds.countGroupedByProduct())); }
     private Map<Long, Long> grouped(List<Object[]> rows) { Map<Long, Long> result = new HashMap<>(); for (Object[] row : rows) if (row != null && row.length >= 2 && row[0] != null) result.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue()); return result; }
 
