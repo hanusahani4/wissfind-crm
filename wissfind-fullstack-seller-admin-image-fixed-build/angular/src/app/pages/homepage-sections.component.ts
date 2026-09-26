@@ -56,7 +56,15 @@ export class HomepageSectionsComponent implements OnDestroy {
   private shopObserver?: MutationObserver;
 
   constructor(){void this.load();}
-  get visibleSections():any[]{ return this.sections.filter((s:any)=>Array.isArray(s?.products)&&s.products.length>0); }
+  get visibleSections():any[]{
+    return this.sections.filter((s:any)=>{
+      if (s?.active === false) return false;
+      if (String(s?.productMode || '').toUpperCase() === 'MANUAL') {
+        return Array.isArray(s?.manualProductIds) && s.manualProductIds.length > 0 && Array.isArray(s?.products) && s.products.length > 0;
+      }
+      return Array.isArray(s?.products) && s.products.length > 0;
+    });
+  }
 
   ngOnDestroy(){ }
 
