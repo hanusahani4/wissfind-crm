@@ -24,13 +24,22 @@ public class SecurityConfig {
         return http.csrf(c -> c.disable())
                 .cors(c -> c.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOrigins(List.of("http://localhost:4200"));
+                    config.setAllowedOrigins(List.of(
+                            "http://localhost:4200",
+                            "https://wissfind.com",
+                            "https://www.wissfind.com"
+                    ));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
                     config.setAllowCredentials(true);
                     return config;
                 }))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, ex) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required or session expired.\"}");
+                }))
                 .authorizeHttpRequests(a -> a
                         // Public API endpoints used by the storefront.
                         .requestMatchers("/api/auth/**", "/actuator/health").permitAll()

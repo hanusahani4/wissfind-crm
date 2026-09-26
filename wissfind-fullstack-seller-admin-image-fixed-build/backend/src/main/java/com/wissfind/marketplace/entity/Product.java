@@ -12,7 +12,9 @@ import java.util.List;
 }, indexes = {
         @Index(name = "idx_products_catalogue", columnList = "status, stock, created_at"),
         @Index(name = "idx_products_category", columnList = "category, status, stock, created_at"),
-        @Index(name = "idx_products_subcategory", columnList = "subcategory, status, stock")
+        @Index(name = "idx_products_subcategory", columnList = "subcategory, status, stock"),
+        @Index(name = "idx_products_seller_created", columnList = "seller_id, created_at"),
+        @Index(name = "idx_products_seller_status", columnList = "seller_id, status, stock, created_at")
 })
 public class Product extends BaseEntity {
 
@@ -48,6 +50,25 @@ public class Product extends BaseEntity {
 
     @Transient
     public List<String> images = new ArrayList<>();
+
+    /**
+     * Server-selected customer-facing variant preview.
+     * Populated by ProductController for catalogue/detail responses so the UI
+     * does not need one /variants request per product card.
+     */
+    @Transient
+    public VariantPreview variantPreview;
+
+    public static class VariantPreview {
+        public boolean hasVariants;
+        public String color;
+        public String size;
+        public String sku;
+        public double price;
+        public double oldPrice;
+        public int stock;
+        public String image;
+    }
 
     @BatchSize(size = 32)
     @ElementCollection(fetch = FetchType.EAGER)

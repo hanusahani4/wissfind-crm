@@ -4,7 +4,11 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "otp_challenges")
+@Table(name = "otp_challenges", indexes = {
+        @Index(name = "idx_otp_phone_purpose_created", columnList = "phone, purpose, created_at"),
+        @Index(name = "idx_otp_phone_expiry", columnList = "phone, expires_at"),
+        @Index(name = "idx_otp_pending", columnList = "phone, purpose, verified, consumed, expires_at")
+})
 public class OtpChallenge extends BaseEntity {
     @Column(nullable = false, length = 20)
     public String phone;

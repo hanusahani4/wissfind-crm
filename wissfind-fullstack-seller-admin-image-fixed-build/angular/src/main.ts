@@ -3,6 +3,9 @@ import { provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { AppComponent } from './app/app.component';
 import { routes } from './app/app.routes';
+import { OrderVariantDomBridge } from './app/core/order-variant-dom-bridge';
+
+OrderVariantDomBridge.install();
 
 bootstrapApplication(AppComponent, {
   providers: [
