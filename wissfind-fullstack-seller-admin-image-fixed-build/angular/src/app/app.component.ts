@@ -31,7 +31,7 @@ export class AppComponent {
   readonly auth=inject(AuthService);readonly cart=inject(CartService);readonly wishlist=inject(WishlistService);private readonly router=inject(Router);private readonly api=inject(BackendApiService);
   telegramConnected=false;telegramBusy=false;telegramError='';
   get isCustomer(){return this.auth.getRole()==='CUSTOMER'}get isSeller(){return this.auth.getRole()==='SELLER'}get isAdmin(){return this.auth.getRole()==='ADMIN'}get isWorkspace(){return this.isSeller||this.isAdmin}get isHome(){return this.router.url==='/'||this.router.url.startsWith('/?')}
-  constructor(){void this.loadTelegramStatus();if(this.isCustomer)void this.wishlist.loadCount();}
+  constructor(){void this.loadTelegramStatus();if(this.isCustomer)void this.wishlist.load();}
   goHomeCategory(event:Event,category:'All'|'Fashion'|'Electronics'|'Home & Living'|'Beauty'|'Sports & Fitness'){event.preventDefault();if(this.isHome){const section=document.getElementById('shop');window.dispatchEvent(new CustomEvent('wissfind-category-change',{detail:category}));setTimeout(()=>section?.scrollIntoView({behavior:'smooth',block:'start'}),0);return;}void this.router.navigate(['/'],{queryParams:{category},fragment:'shop'});}
   scrollLinks(){const element=document.querySelector('.links') as HTMLElement|null;element?.scrollBy({left:Math.max(element.clientWidth*.75,160),behavior:'smooth'});}
   scrollActions(){const element=document.querySelector('.actions') as HTMLElement|null;element?.scrollBy({left:Math.max(element.clientWidth*.75,140),behavior:'smooth'});}
