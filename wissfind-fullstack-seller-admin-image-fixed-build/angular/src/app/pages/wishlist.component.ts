@@ -70,6 +70,6 @@ export class WishlistComponent {
 
   imageUrl(url?: string) {
     if (!url) return '';
-    return /^https?:\\/\\//i.test(url) ? url : '/api' + (url.startsWith('/') ? url : '/' + url);
+    return /^https?:\/\//i.test(url) ? url : '/api' + (url.startsWith('/') ? url : '/' + url);
   }
 }
