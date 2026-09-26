@@ -64,6 +64,15 @@ export class ProductService {
   }
 
   async reload(){this.loadedInternal=false;this.loadingInternal=false;this.loaded.set(false);this.loading.set(false);this.homePages.clear();this.catalogueTotal.set(0);await this.load();}
+  async searchProducts(term:string,page=0,size=24,signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}>{
+    const q=String(term||'').trim();
+    if(!q) return {items:[],total:0,totalPages:1};
+    const safePage=Math.max(0,page),safeSize=Math.min(50,Math.max(1,size));
+    const data:any=await this.api.get(`/products/paged?page=${safePage}&size=${safeSize}&search=${encodeURIComponent(q)}`,signal);
+    const items:Array<Product>=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];
+    return {items,total:Number(data?.totalElements||0),totalPages:Math.max(1,Number(data?.totalPages||1))};
+  }
+
   async getByIdAsync(id:string|number,signal?:AbortSignal):Promise<Product|undefined>{
   const productId=String(id);
   // Product detail must always start from the current backend response.
