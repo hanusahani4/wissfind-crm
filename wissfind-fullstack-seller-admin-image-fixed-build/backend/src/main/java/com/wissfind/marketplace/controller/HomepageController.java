@@ -62,7 +62,10 @@ public class HomepageController {
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
-    public Map<String, Object> adminData() {
+    public Map<String, Object> adminData(jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
         List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
         List<Map<String, Object>> rows = sections.findAllByOrderByDisplayOrderAsc().stream()
                 .map(s -> adminSection(s, selectProducts(s, all, configured, analytics))).toList();
