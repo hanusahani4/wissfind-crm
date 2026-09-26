@@ -6,7 +6,6 @@ import { ReviewService } from '../core/review.service';
 import { CartService } from '../core/cart.service';
 import { WishlistService } from '../core/wishlist.service';
 import { AuthService } from '../core/auth.service';
-import { WishlistService } from '../core/wishlist.service';
 import { HomepageSectionsComponent } from './homepage-sections.component';
 
 type CategoryFilter = 'All'|'Fashion'|'Electronics'|'Home & Living'|'Beauty'|'Sports & Fitness'|'Books & Stationery'|'Grocery'|'Travel';
@@ -30,7 +29,7 @@ type CategoryFilter = 'All'|'Fashion'|'Electronics'|'Home & Living'|'Beauty'|'Sp
 export class HomeComponent implements OnDestroy {
   @HostListener('window:wissfind-category-change',['$event']) onHeaderCategoryChange(event:Event){const category=(event as CustomEvent).detail as CategoryFilter;if(this.topCategories.includes(category))this.selectCategory(category);}
   @HostListener('window:scroll') onWindowScroll(){if(typeof window==='undefined')return;const nearBottom=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-700;if(nearBottom)void this.loadNextPage();}
-  private readonly productService=inject(ProductService); private readonly cart=inject(CartService); private readonly wishlist=inject(WishlistService); private readonly router=inject(Router); private readonly auth=inject(AuthService); readonly wishlist=inject(WishlistService); private readonly pageAbort=new AbortController(); readonly reviews=inject(ReviewService); private route=inject(ActivatedRoute); private products=this.productService.products;
+  private readonly productService=inject(ProductService); private readonly cart=inject(CartService); private readonly router=inject(Router); private readonly auth=inject(AuthService); readonly wishlist=inject(WishlistService); private readonly pageAbort=new AbortController(); readonly reviews=inject(ReviewService); private route=inject(ActivatedRoute); private products=this.productService.products;
   query=signal(''); category=signal<CategoryFilter>('All'); subcategory=signal('All'); detail=signal('All'); sort=signal('featured');
   readonly pageSize=20; private nextPage=1; private totalPages=1; loadingMore=signal(false); allLoaded=signal(false);
   readonly topCategories:CategoryFilter[]=['All','Fashion','Electronics','Home & Living','Beauty','Sports & Fitness','Books & Stationery','Grocery','Travel'];
@@ -46,15 +45,11 @@ export class HomeComponent implements OnDestroy {
   matchesDetail(p:any){if(this.detail()==='All')return true;const value=`${p.name} ${p.subcategory||''} ${p.type||''} ${(p.tags||[]).join(' ')}`.toLowerCase();return value.includes(this.detail().toLowerCase().replace(/s$/,''));}
   filtered=computed(()=>{this.productService.productsVersion();let list=this.products.filter(p=>this.category()==='All'||p.category===this.category());if(this.subcategory()!=='All')list=list.filter(p=>this.matchesSubcategory(p));if(this.detail()!=='All')list=list.filter(p=>this.matchesDetail(p));const q=this.query();if(q)list=list.filter(p=>`${p.name} ${p.category} ${p.subcategory} ${p.tags.join(' ')}`.toLowerCase().includes(q));switch(this.sort()){case'low':return[...list].sort((a,b)=>a.price-b.price);case'high':return[...list].sort((a,b)=>b.price-a.price);case'rating':return[...list].sort((a,b)=>b.rating-a.rating);default:return list;}});
   pagedProducts=computed(()=>this.filtered());
-  starText(rating:number){const full=Math.round(rating);return '★'.repeat(full)+'☆'.repeat(5-full);} async toggleWishlist(event:Event,id:string){event.preventDefault();event.stopPropagation();if(!this.auth.user()){await this.router.navigate(['/login'],{queryParams:{returnUrl:this.router.url}});return;}await this.wishlist.toggle(id);}
-  async toggleWishlist(event:Event,id:string|number){
+  starText(rating:number){const full=Math.round(rating);return '★'.repeat(full)+'☆'.repeat(5-full);} async toggleWishlist(event:Event,id:string|number){
     event.preventDefault();
     event.stopPropagation();
-    if(!this.wishlist.isWishlisted(id)){
-      await this.wishlist.add(id);
-    }else{
-      await this.wishlist.remove(id);
-    }
+    if(!this.auth.user()){await this.router.navigate(['/login'],{queryParams:{returnUrl:this.router.url}});return;}
+    await this.wishlist.toggle(id);
   }
   addToCart(event:Event,p:any){event.preventDefault();event.stopPropagation();if(!p||!p.stock)return;const vp=p.variantPreview?.hasVariants?p.variantPreview:undefined;const variant=vp?{color:vp.color||'',size:vp.size||'',sku:vp.sku||'',price:Number(vp.price??p.price),oldPrice:Number(vp.oldPrice??p.oldPrice??0),image:vp.image||p.image,stock:Number(vp.stock??p.stock)}:undefined;this.cart.add(p,variant);void this.router.navigateByUrl('/cart');}
 }
