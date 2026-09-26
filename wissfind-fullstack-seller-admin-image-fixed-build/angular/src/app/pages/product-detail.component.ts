@@ -6,6 +6,7 @@ import { ProductService } from '../core/product.service';
 import { CartService } from '../core/cart.service';
 import { AuthService } from '../core/auth.service';
 import { ProductReview, ReviewService } from '../core/review.service';
+import { WishlistService } from '../core/wishlist.service';
 
 // Existing template/styles are intentionally preserved. The important fix is
 // that review data is loaded asynchronously and this application uses zoneless
@@ -27,7 +28,7 @@ import { ProductReview, ReviewService } from '../core/review.service';
         </div>
         <div class="copy">
           <div class="eyebrow">{{ product.category }} / {{ product.subcategory }}</div><h1>{{ product.name }}</h1>
-          <div class="rating-row"><div class="rating"><span class="big-stars">{{ starText(product.rating) }}</span> <strong>{{ product.rating }}</strong> <span>({{ product.reviews }} reviews)</span></div><button type="button" class="product-like" [class.liked]="reviews.isProductLiked(product.id)" (click)="toggleProductLike()">{{ reviews.isProductLiked(product.id) ? '♥' : '♡' }} <span>{{ reviews.getProductLikeCount(product.id) }}</span></button></div>
+          <div class="rating-row"><div class="rating"><span class="big-stars">{{ starText(product.rating) }}</span> <strong>{{ product.rating }}</strong> <span>({{ product.reviews }} reviews)</span></div><button type="button" class="product-like" [class.liked]="wishlist.isWishlisted(product.id)" (click)="toggleWishlist()" [attr.aria-label]="wishlist.isWishlisted(product.id) ? 'Remove from wishlist' : 'Add to wishlist'">{{ wishlist.isWishlisted(product.id) ? '♥' : '♡' }} <span>{{ wishlist.isWishlisted(product.id) ? 'Saved' : 'Wishlist' }}</span></button></div>
           <div class="price"><strong>₹{{ product.price | number }}</strong><del *ngIf="product.oldPrice">₹{{ product.oldPrice | number }}</del></div><p>{{ product.description }}</p>
           <div class="product-specs" *ngIf="product.brand || product.gender || product.material || product.warranty || product.returnDays || product.shippingFee"><div *ngIf="product.brand"><small>Brand</small><strong>{{ product.brand }}</strong></div><div *ngIf="product.gender"><small>For</small><strong>{{ product.gender }}</strong></div><div *ngIf="product.material"><small>Material</small><strong>{{ product.material }}</strong></div><div *ngIf="product.warranty"><small>Warranty</small><strong>{{ product.warranty }}</strong></div><div *ngIf="product.returnDays !== undefined"><small>Returns</small><strong>{{ product.returnDays }} days</strong></div><div><small>Shipping</small><strong>{{ product.shippingFee ? ('₹' + product.shippingFee) : 'Free' }}</strong></div></div>
           <div class="option" *ngIf="product.sizes?.length"><strong>Size</strong><div class="swatches"><button *ngFor="let s of product.sizes">{{ s }}</button></div></div><div class="option" *ngIf="product.colors?.length"><strong>Color</strong><div class="swatches"><button *ngFor="let c of product.colors">{{ c }}</button></div></div>
@@ -55,6 +56,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private cart = inject(CartService);
   auth = inject(AuthService);
   reviews = inject(ReviewService);
+  wishlist = inject(WishlistService);
   private cdr = inject(ChangeDetectorRef);
   private detailRequestId = 0;
   product: any;
@@ -87,6 +89,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    if (this.auth.getRole() === 'CUSTOMER') void this.wishlist.load();
     this.route.paramMap.subscribe(params => {
       const id = Number(params.get('id'));
       if (!Number.isFinite(id) || id <= 0) return;
@@ -187,6 +190,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   starText(rating: number) { const full = Math.round(Number(rating || 0)); return '★'.repeat(full) + '☆'.repeat(Math.max(0, 5 - full)); }
   async addToCart() { await this.cart.add(this.product); }
   async toggleProductLike() { await this.reviews.toggleProductLike(this.product.id); this.cdr.markForCheck(); }
+  async toggleWishlist() { if (!this.auth.user()) { await this.router.navigate(['/login'], { queryParams: { returnUrl: this.router.url } }); return; } await this.wishlist.toggle(this.product.id); this.cdr.markForCheck(); }
   async toggleReviewLike(id: number) { await this.reviews.toggleReviewLike(id); this.cdr.markForCheck(); }
   async submitReview() { if (!this.auth.user()) return; this.reviewMessage = await this.reviews.addReview(this.product.id, { rating: this.reviewRating, title: this.reviewTitle, text: this.reviewText }); this.reviewTitle = ''; this.reviewText = ''; this.reviewList = await this.reviews.getReviews(this.product.id); this.averageRating = this.reviewList.reduce((sum, r) => sum + r.rating, 0) / this.reviewList.length; this.cdr.markForCheck(); }
   isRelatedLiked(id: number) { return this.reviews.isProductLiked(id); }
