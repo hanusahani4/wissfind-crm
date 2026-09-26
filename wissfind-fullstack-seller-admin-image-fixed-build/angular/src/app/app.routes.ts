@@ -11,6 +11,7 @@ export const routes: Routes = [
   { path: 'cart', loadComponent: () => import('./pages/cart.component').then(m => m.CartComponent) },
   { path: 'checkout', canActivate: [roleGuard(['CUSTOMER']), razorpayCheckoutGuard], loadComponent: () => import('./pages/checkout.component').then(m => m.CheckoutComponent) },
   { path: 'orders', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/orders.component').then(m => m.OrdersComponent) },
+  { path: 'wishlist', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/wishlist.component').then(m => m.WishlistComponent) },
   { path: 'ai-shop', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/ai-shop.component').then(m => m.AiShopComponent) },
   { path: 'compare', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/compare.component').then(m => m.CompareComponent) },
   { path: 'price-alerts', canActivate: [roleGuard(['CUSTOMER'])], loadComponent: () => import('./pages/price-alerts.component').then(m => m.PriceAlertsComponent) },
