@@ -120,10 +120,9 @@ public class HomepageController {
                     .sorted(Comparator.comparingDouble((Product p) -> p.rating).reversed().thenComparing(Comparator.comparingInt((Product p) -> p.reviews).reversed())).toList();
         };
         List<Long> manualIds = parseIds(section.manualProductIds);
-        Map<Long, Product> byId = configured.stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
-        // An explicit manual selection is authoritative: configured products are
-        // rendered even when their stock is currently zero. Automatic sections
-        // continue to use the customer-visible LIVE catalogue above.
+        Map<Long, Product> byId = products.findAllById(manualIds).stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
+        // Manual configuration is authoritative. Resolve the selected IDs
+        // directly from the database and preserve the exact admin order.
         List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList();
         int max = Math.max(1, Math.min(30, section.maxProducts));
         if (section.productMode == HomepageSection.ProductMode.MANUAL) return manual.stream().limit(max).toList();
@@ -144,7 +143,7 @@ public class HomepageController {
     private double discountPercent(Product p) { if (p.discountPercent != null) return Math.max(0, p.discountPercent); if (p.oldPrice > p.price && p.oldPrice > 0) return (p.oldPrice - p.price) * 100.0 / p.oldPrice; return 0; }
 
     private Map<String, Object> responseSection(HomepageSection s, List<Product> selected) {
-        populateImages(selected); Map<String, Object> row = new LinkedHashMap<>(); row.put("id", s.id); row.put("title", s.title); row.put("type", s.sectionType); row.put("slug", s.slug); row.put("showViewAll", s.showViewAll); row.put("products", selected); return row;
+        populateImages(selected); Map<String, Object> row = new LinkedHashMap<>(); row.put("id", s.id); row.put("title", s.title); row.put("type", s.sectionType); row.put("slug", s.slug); row.put("showViewAll", s.showViewAll); row.put("productMode", s.productMode); row.put("manualProductIds", parseIds(s.manualProductIds)); row.put("active", s.active); row.put("products", selected); return row;
     }
     private Map<String, Object> adminSection(HomepageSection s, List<Product> selected) {
         Map<String, Object> row = new LinkedHashMap<>(responseSection(s, selected)); row.put("productMode", s.productMode); row.put("displayOrder", s.displayOrder); row.put("active", s.active); row.put("maxProducts", s.maxProducts); row.put("categoryId", s.categoryId); row.put("manualProductIds", parseIds(s.manualProductIds)); row.put("startDate", s.startDate); row.put("endDate", s.endDate); return row;
