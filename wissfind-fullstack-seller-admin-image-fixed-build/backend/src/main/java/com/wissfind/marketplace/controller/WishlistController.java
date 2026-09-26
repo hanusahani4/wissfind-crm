@@ -45,7 +45,7 @@ public class WishlistController {
     public List<WishlistProduct> mine() {
         Long userId = CurrentUser.id();
         List<WishlistProduct> result = new ArrayList<>();
-        for (WishlistItem item : wishlist.findByUserIdOrderByCreatedAtDesc(userId)) {
+        for (WishlistItem item : wishlist.findMine(userId)) {
             Product p = item.product;
             if (p == null) continue;
             result.add(toView(p));
