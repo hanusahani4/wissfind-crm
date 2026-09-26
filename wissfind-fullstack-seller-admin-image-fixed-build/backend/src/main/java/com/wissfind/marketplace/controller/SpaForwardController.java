@@ -21,6 +21,7 @@ public class SpaForwardController {
             "/compare",
             "/price-alerts",
             "/returns",
+            "/wishlist",
             "/admin",
             "/admin/homepage",
             "/admin/shipping",
