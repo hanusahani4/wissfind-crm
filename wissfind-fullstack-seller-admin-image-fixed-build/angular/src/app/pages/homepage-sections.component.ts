@@ -62,7 +62,7 @@ export class HomepageSectionsComponent implements OnDestroy {
 
   async load(){
     try{
-      const data:any=await this.api.get('/homepage');
+      const data:any=await this.api.get(`/homepage?_=${Date.now()}`);
       this.sections=Array.isArray(data?.sections) ? data.sections : [];
     }catch{this.sections=[];}
     this.cdr.markForCheck();
