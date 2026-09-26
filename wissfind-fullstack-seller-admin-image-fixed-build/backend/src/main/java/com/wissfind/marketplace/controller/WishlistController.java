@@ -11,6 +11,7 @@ import com.wissfind.marketplace.repo.ProductRepository;
 import com.wissfind.marketplace.repo.UserRepository;
 import com.wissfind.marketplace.repo.WishlistItemRepository;
 import com.wissfind.marketplace.service.CurrentUser;
+import jakarta.persistence.EntityManager;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -30,11 +31,12 @@ public class WishlistController {
     private final EntityManager entityManager;
 
     public WishlistController(WishlistItemRepository wishlist, ProductRepository products,
-                              ProductImageRepository images, UserRepository users) {
+                              ProductImageRepository images, UserRepository users, EntityManager entityManager) {
         this.wishlist = wishlist;
         this.products = products;
         this.images = images;
         this.users = users;
+        this.entityManager = entityManager;
     }
 
     @GetMapping
