@@ -49,26 +49,20 @@ public class HomepageController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public Map<String, Object> homepage(jakarta.servlet.http.HttpServletResponse response) {
-        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        response.setHeader("Pragma", "no-cache");
-        response.setDateHeader("Expires", 0);
-        List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
+    public Map<String, Object> homepage() {
+        List<Product> all = liveProducts(); Analytics analytics = analytics();
         List<Map<String, Object>> result = sections.findByActiveTrueOrderByDisplayOrderAsc().stream().filter(this::withinSchedule)
-                .map(section -> responseSection(section, selectProducts(section, all, configured, analytics))).toList();
+                .map(section -> responseSection(section, selectProducts(section, all, analytics))).toList();
         return Map.of("sections", result);
     }
 
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
-    public Map<String, Object> adminData(jakarta.servlet.http.HttpServletResponse response) {
-        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        response.setHeader("Pragma", "no-cache");
-        response.setDateHeader("Expires", 0);
-        List<Product> all = liveProducts(); List<Product> configured = products.findAll(); Analytics analytics = analytics();
+    public Map<String, Object> adminData() {
+        List<Product> all = liveProducts(); Analytics analytics = analytics();
         List<Map<String, Object>> rows = sections.findAllByOrderByDisplayOrderAsc().stream()
-                .map(s -> adminSection(s, selectProducts(s, all, configured, analytics))).toList();
+                .map(s -> adminSection(s, selectProducts(s, all, analytics))).toList();
         List<Map<String, Object>> categoryRows = categories.findAll().stream().map(c -> {
             Map<String, Object> row = new LinkedHashMap<>(); row.put("id", c.id); row.put("name", c.name); row.put("slug", c.slug); row.put("active", c.active); return row;
         }).toList();
@@ -108,11 +102,11 @@ public class HomepageController {
         HomepageSection s = new HomepageSection(); s.title = title; s.slug = slug; s.sectionType = type; s.displayOrder = order;
         s.productMode = HomepageSection.ProductMode.AUTOMATIC; s.maxProducts = 10; s.active = true; s.showViewAll = true; sections.save(s);
     }
-    private List<Product> liveProducts() { return products.findAll().stream().filter(p -> p.status == Product.Status.LIVE).collect(Collectors.toCollection(ArrayList::new)); }
+    private List<Product> liveProducts() { return products.findAll().stream().filter(p -> p.status == Product.Status.LIVE && p.stock > 0).collect(Collectors.toCollection(ArrayList::new)); }
     private Analytics analytics() { return new Analytics(grouped(views.countGroupedByProduct()), grouped(cartAdds.countGroupedByProduct())); }
     private Map<Long, Long> grouped(List<Object[]> rows) { Map<Long, Long> result = new HashMap<>(); for (Object[] row : rows) if (row != null && row.length >= 2 && row[0] != null) result.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue()); return result; }
 
-    private List<Product> selectProducts(HomepageSection section, List<Product> all, List<Product> configured, Analytics a) {
+    private List<Product> selectProducts(HomepageSection section, List<Product> all, Analytics a) {
         List<Product> automatic = switch (section.sectionType) {
             case TRENDING -> all.stream().sorted(Comparator.comparingDouble((Product p) -> trendingScore(p, a)).reversed()).toList();
             case BEST_SELLERS -> all.stream().sorted(Comparator.comparingInt((Product p) -> p.sales).reversed()).toList();
@@ -122,12 +116,8 @@ public class HomepageController {
             case TOP_RATED -> all.stream().filter(p -> p.rating >= 4.0 && p.reviews >= 5)
                     .sorted(Comparator.comparingDouble((Product p) -> p.rating).reversed().thenComparing(Comparator.comparingInt((Product p) -> p.reviews).reversed())).toList();
         };
-        List<Long> manualIds = parseIds(section.manualProductIds);
-        Map<Long, Product> byId = products.findAllById(manualIds).stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
-        // Manual configuration is authoritative. Resolve the selected IDs
-        // directly from the database and preserve the exact admin order.
-        List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList();
-        int max = Math.max(1, Math.min(30, section.maxProducts));
+        List<Long> manualIds = parseIds(section.manualProductIds); Map<Long, Product> byId = all.stream().collect(Collectors.toMap(p -> p.id, p -> p, (a1, b1) -> a1));
+        List<Product> manual = manualIds.stream().map(byId::get).filter(Objects::nonNull).toList(); int max = Math.max(1, Math.min(30, section.maxProducts));
         if (section.productMode == HomepageSection.ProductMode.MANUAL) return manual.stream().limit(max).toList();
         if (section.productMode == HomepageSection.ProductMode.HYBRID) {
             Set<Long> selected = manual.stream().map(p -> p.id).collect(Collectors.toSet()); List<Product> merged = new ArrayList<>(manual);
@@ -146,7 +136,7 @@ public class HomepageController {
     private double discountPercent(Product p) { if (p.discountPercent != null) return Math.max(0, p.discountPercent); if (p.oldPrice > p.price && p.oldPrice > 0) return (p.oldPrice - p.price) * 100.0 / p.oldPrice; return 0; }
 
     private Map<String, Object> responseSection(HomepageSection s, List<Product> selected) {
-        populateImages(selected); Map<String, Object> row = new LinkedHashMap<>(); row.put("id", s.id); row.put("title", s.title); row.put("type", s.sectionType); row.put("slug", s.slug); row.put("showViewAll", s.showViewAll); row.put("productMode", s.productMode); row.put("manualProductIds", parseIds(s.manualProductIds)); row.put("active", s.active); row.put("products", selected); return row;
+        populateImages(selected); Map<String, Object> row = new LinkedHashMap<>(); row.put("id", s.id); row.put("title", s.title); row.put("type", s.sectionType); row.put("slug", s.slug); row.put("showViewAll", s.showViewAll); row.put("products", selected); return row;
     }
     private Map<String, Object> adminSection(HomepageSection s, List<Product> selected) {
         Map<String, Object> row = new LinkedHashMap<>(responseSection(s, selected)); row.put("productMode", s.productMode); row.put("displayOrder", s.displayOrder); row.put("active", s.active); row.put("maxProducts", s.maxProducts); row.put("categoryId", s.categoryId); row.put("manualProductIds", parseIds(s.manualProductIds)); row.put("startDate", s.startDate); row.put("endDate", s.endDate); return row;

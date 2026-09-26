@@ -1,5 +1,5 @@
 import { CommonModule, DecimalPipe } from '@angular/common';
-import { ChangeDetectorRef, Component, inject, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { BackendApiService } from '../core/backend-api.service';
 import { CartService } from '../core/cart.service';
@@ -11,8 +11,8 @@ import { ProductService } from '../core/product.service';
   standalone: true,
   imports: [CommonModule, DecimalPipe, RouterLink],
   template: `
-    <section class="homepage-sections" *ngIf="visibleSections.length">
-      <div class="section" *ngFor="let section of visibleSections">
+    <section class="homepage-sections" *ngIf="sections.length">
+      <div class="section" *ngFor="let section of sections">
         <div class="section-head">
           <div><div class="eyebrow">CURATED FOR YOU</div><h2>{{ section.title }}</h2></div>
           <a *ngIf="section.showViewAll" href="#shop" class="view-all">View all →</a>
@@ -45,35 +45,71 @@ import { ProductService } from '../core/product.service';
     .catalog-empty-state{grid-column:1/-1;display:grid;place-items:center;text-align:center;min-height:260px;padding:36px 20px;border:1px dashed var(--line);border-radius:18px;background:#fff;margin-top:8px}.catalog-empty-state h3{margin:0 0 8px;font-size:22px}.catalog-empty-state p{margin:0 0 18px;color:#777;line-height:1.6;font-size:14px}.catalog-empty-state a{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#111;color:#fff;padding:11px 18px;font-size:12px;font-weight:800;text-decoration:none}
   `]
 })
-export class HomepageSectionsComponent implements OnDestroy {
+export class HomepageSectionsComponent implements AfterViewInit, OnDestroy {
   private api = inject(BackendApiService);
   private cart = inject(CartService);
   private router = inject(Router);
-  private cdr = inject(ChangeDetectorRef);
+  private host = inject(ElementRef<HTMLElement>);
   private productService = inject(ProductService);
   readonly reviews = inject(ReviewService);
   sections:any[]=[];
   private shopObserver?: MutationObserver;
 
   constructor(){void this.load();}
-  get visibleSections():any[]{
-    return this.sections.filter((s:any)=>{
-      if (s?.active === false) return false;
-      if (String(s?.productMode || '').toUpperCase() === 'MANUAL') {
-        return Array.isArray(s?.manualProductIds) && s.manualProductIds.length > 0 && Array.isArray(s?.products) && s.products.length > 0;
-      }
-      return Array.isArray(s?.products) && s.products.length > 0;
-    });
+
+  ngAfterViewInit(){
+    this.moveInsideCustomerHome();
+    this.watchShopCatalog();
   }
 
-  ngOnDestroy(){ }
+  ngOnDestroy(){
+    this.shopObserver?.disconnect();
+  }
+
+  private moveInsideCustomerHome(attempt=0){
+    const host=this.host.nativeElement;
+    const shop=document.getElementById('shop');
+    const parent=shop?.parentElement;
+    if(parent && host.parentElement!==parent){
+      parent.insertBefore(host,shop);
+      return;
+    }
+    if(!parent && attempt<20)setTimeout(()=>this.moveInsideCustomerHome(attempt+1),100);
+  }
+
+  private watchShopCatalog(attempt=0){
+    const grid=document.querySelector<HTMLElement>('#shop ~ .grid');
+    if(grid){
+      this.syncEmptyState(grid);
+      this.shopObserver=new MutationObserver(()=>this.syncEmptyState(grid));
+      this.shopObserver.observe(grid,{childList:true});
+      return;
+    }
+    if(attempt<20)setTimeout(()=>this.watchShopCatalog(attempt+1),100);
+  }
+
+  private syncEmptyState(grid: HTMLElement){
+    const existing=grid.querySelector<HTMLElement>('.catalog-empty-state');
+    if(!this.productService.loaded()){
+      existing?.remove();
+      return;
+    }
+    const hasProducts=Array.from(grid.children).some(child=>!child.classList.contains('catalog-empty-state'));
+    if(!hasProducts && !existing){
+      const empty=document.createElement('div');
+      empty.className='catalog-empty-state';
+      empty.innerHTML='<h3>Nothing here yet! 🛍️</h3><p>We’re adding exciting new products to this collection soon.</p><a href="#shop">Explore All Products →</a>';
+      grid.appendChild(empty);
+    }else if(hasProducts && existing){
+      existing.remove();
+    }
+  }
 
   async load(){
     try{
-      const data:any=await this.api.get(`/homepage?_=${Date.now()}`);
-      this.sections=Array.isArray(data?.sections) ? data.sections : [];
+      const data:any=await this.api.get('/homepage');
+      this.sections=Array.isArray(data?.sections)?data.sections:[];
     }catch{this.sections=[];}
-    this.cdr.markForCheck();
   }
 
   add(event:Event,p:any){event.preventDefault();event.stopPropagation();if(!p?.stock)return;this.cart.add(p);void this.router.navigateByUrl('/cart');}

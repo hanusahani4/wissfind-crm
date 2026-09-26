@@ -4,10 +4,11 @@ import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { CartService } from './core/cart.service';
 import { BackendApiService } from './core/backend-api.service';
+import { HomepageSectionsComponent } from './pages/homepage-sections.component';
 
 @Component({
   selector: 'app-root', standalone: true,
-  imports: [RouterOutlet, RouterLink, NgIf, DecimalPipe],
+  imports: [RouterOutlet, RouterLink, NgIf, DecimalPipe, HomepageSectionsComponent],
   template: `
     <header class="header" *ngIf="!isWorkspace"><div class="container nav"><a routerLink="/" class="brand">WISS<span>FIND</span></a><div class="links-wrap"><nav class="links" *ngIf="isCustomer"><a href="#shop" (click)="goHomeCategory($event, 'All')">Shop</a><a href="#shop" (click)="goHomeCategory($event, 'Fashion')">Fashion</a><a href="#shop" (click)="goHomeCategory($event, 'Electronics')">Electronics</a><a href="#shop" (click)="goHomeCategory($event, 'Home & Living')">Home</a><a href="#shop" (click)="goHomeCategory($event, 'Beauty')">Beauty</a><a href="#shop" (click)="goHomeCategory($event, 'Sports & Fitness')">Sports</a><a routerLink="/ai-shop">AI Shop</a><a routerLink="/compare">Compare</a><a href="#shop" (click)="goHomeCategory($event, 'All')" class="offers">Offers <b>New</b></a></nav><button class="mobile-links-arrow" *ngIf="isCustomer" type="button" aria-label="Show more categories" (click)="scrollLinks()">››</button></div><div class="search" *ngIf="isCustomer"><input #searchBox type="search" placeholder="Search products..." (keyup.enter)="search(searchBox.value)"><button type="button" (click)="search(searchBox.value)">⌕</button></div><div class="actions-wrap"><div class="actions"><ng-container *ngIf="isCustomer"><a class="orders-link" routerLink="/orders">Orders</a><a class="orders-link" routerLink="/returns">Returns</a><a class="orders-link" routerLink="/price-alerts">Price alerts</a><a class="cart-link" routerLink="/cart"><span class="cart-icon">🛒</span><span class="cart-copy"><strong>Cart</strong><small>₹{{cart.subtotal()|number}}</small></span><span class="cart-badge" *ngIf="cart.count()">{{cart.count()}}</span></a></ng-container><ng-container *ngIf="auth.user();else guest"><a *ngIf="isCustomer" class="seller-link" routerLink="/seller/register">Become a Seller</a><a *ngIf="isSeller" class="workspace-link" routerLink="/seller">Seller Center</a><a *ngIf="isAdmin" class="workspace-link" routerLink="/admin">Admin Panel</a><button class="icon-btn" (click)="logout()">Logout</button></ng-container><ng-template #guest><a class="icon-btn" routerLink="/login">Login</a><a class="icon-btn filled" routerLink="/signup">Sign up</a></ng-template></div><button class="mobile-scroll-arrow" type="button" aria-label="Show more header options" (click)="scrollActions()">››</button></div></div></header>
     <div class="admin-tools" *ngIf="isAdmin"><a routerLink="/admin">Admin Panel</a><a routerLink="/admin/homepage">🏠 Homepage Management</a><a routerLink="/admin/shipping">🚚 Delivery & COD</a></div>
@@ -19,6 +20,7 @@ import { BackendApiService } from './core/backend-api.service';
       <div class="seller-tools-error" *ngIf="telegramError">{{telegramError}}</div>
     </div>
     <router-outlet />
+    <app-homepage-sections *ngIf="!isWorkspace && isHome" />
     <footer class="footer" *ngIf="!isWorkspace"><div class="container footer-inner"><div><div class="brand">WISS<span>FIND</span></div><p>Everyday style. Smarter tech.</p></div><div class="footer-support"><strong>Customer Support</strong><a href="tel:+918299360496">8299360496</a></div><div class="muted">© 2026 WissFind</div></div></footer>
   `,
   styles: [`
