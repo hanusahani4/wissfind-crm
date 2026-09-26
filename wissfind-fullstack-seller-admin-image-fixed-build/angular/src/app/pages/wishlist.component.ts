@@ -45,7 +45,10 @@ export class WishlistComponent {
   }
 
   async remove(item: WishlistProduct) {
-    await this.wishlist.remove(item.id);
+    const removed = await this.wishlist.remove(item.id);
+    if (!removed) {
+      await this.wishlist.load();
+    }
   }
 
   async addToCart(item: WishlistProduct) {
@@ -70,6 +73,7 @@ export class WishlistComponent {
 
   imageUrl(url?: string) {
     if (!url) return '';
-    return /^https?:\/\//i.test(url) ? url : '/api' + (url.startsWith('/') ? url : '/' + url);
+    if (/^https?:\/\//i.test(url)) return url;
+    return url.startsWith('/api/') ? url : '/api' + (url.startsWith('/') ? url : '/' + url);
   }
 }
