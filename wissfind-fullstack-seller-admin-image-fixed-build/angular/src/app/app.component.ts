@@ -127,8 +127,6 @@ export class AppComponent {
       ? Math.min(window.innerWidth-width-8,this.mobileSearchLeft()+56+gap)
       : Math.max(8,this.mobileSearchLeft()-width-gap);
   }
-  mobileHeaderBottom(){return this.mobileHeaderBottomSignal();}
-  private mobileHeaderBottomSignal(){if(typeof window==='undefined')return 0;return this.mobileHeaderBottom();}
   private measureMobileHeader(){if(typeof window==='undefined'||window.innerWidth>700)return;const header=document.querySelector('.header') as HTMLElement|null;if(header)this.mobileHeaderBottom.set(Math.ceil(header.getBoundingClientRect().bottom));}
   @HostListener('window:resize') onWindowResize(){if(typeof window!=='undefined'&&window.innerWidth<=700){this.measureMobileHeader();if(!this.draggingSearch){this.mobileSearchLeft.set(Math.min(window.innerWidth-56,Math.max(8,this.mobileSearchLeft())));this.mobileSearchTop.set(Math.min(window.innerHeight-56,Math.max(70,this.mobileSearchTop())));}}}
   startSearchDrag(event:PointerEvent){
