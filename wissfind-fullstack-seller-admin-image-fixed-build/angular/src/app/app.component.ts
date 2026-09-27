@@ -128,6 +128,13 @@ export class AppComponent {
       : Math.max(8,this.mobileSearchLeft()-width-gap);
   }
   private measureMobileHeader(){if(typeof window==='undefined'||window.innerWidth>700)return;const header=document.querySelector('.header') as HTMLElement|null;if(header)this.mobileHeaderBottom.set(Math.ceil(header.getBoundingClientRect().bottom));}
+  @HostListener('window:scroll')
+  onWindowScroll(){
+    if (this.openHeaderCategory()) {
+      this.openHeaderCategory.set(null);
+    }
+  }
+
   @HostListener('window:resize') onWindowResize(){if(typeof window!=='undefined'&&window.innerWidth<=700){this.measureMobileHeader();if(!this.draggingSearch){this.mobileSearchLeft.set(Math.min(window.innerWidth-56,Math.max(8,this.mobileSearchLeft())));this.mobileSearchTop.set(Math.min(window.innerHeight-56,Math.max(70,this.mobileSearchTop())));}}}
   startSearchDrag(event:PointerEvent){
     if(event.button!==0&&event.pointerType!=='touch')return;
