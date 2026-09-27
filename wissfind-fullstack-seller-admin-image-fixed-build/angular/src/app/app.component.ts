@@ -53,6 +53,24 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
       .mobile-search-panel input{border:0;outline:0;background:transparent;min-width:0;width:100%;font-size:14px;padding:10px 0}
       .mobile-search-panel button{border:0;background:transparent;font-size:23px;line-height:1;cursor:pointer}
       .header-spacer{height:171px}.nav{min-height:auto;gap:8px 10px;padding:9px 0}.brand{font-size:19px}.actions-wrap{order:2;margin-left:auto;max-width:calc(100% - 125px);padding-bottom:2px;overflow:hidden}.actions{max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding-right:2px}.mobile-scroll-arrow{display:block;margin-left:5px}.links-wrap{order:3;flex-basis:100%;width:100%;display:flex;align-items:center;gap:5px;overflow:hidden}.links{flex:1 1 auto;width:auto;gap:15px;padding:5px 2px 4px;border-top:1px solid var(--line);overflow-x:auto;flex-wrap:nowrap}.mobile-links-arrow{display:block;margin-left:0}.search{order:4;flex-basis:100%;width:100%;max-width:none;min-width:0}.search input{padding:10px 0}.orders-link{display:inline-flex;font-size:12px;padding:8px 9px}.cart-copy{display:none}.cart-link{min-width:32px}.icon-btn{padding:8px 11px}.admin-tools{overflow:auto;white-space:nowrap}.seller-tools{padding:9px 12px}.seller-tools-inner{align-items:flex-start}.telegram-connect-btn{margin-left:auto}.footer-inner{align-items:flex-start;flex-wrap:wrap;gap:20px}.footer-support{min-width:150px}}@media(max-width:430px){.actions-wrap{max-width:calc(100% - 115px)}.icon-btn{padding:8px 10px;font-size:12px}.links{gap:14px;font-size:13px}}
+      @media(max-width:900px){
+        .header .search{display:none!important}
+        .mobile-search-layer{display:block;position:fixed;inset:0;z-index:2100;pointer-events:none}
+        .mobile-search-fab{
+          display:grid;position:fixed;width:48px;height:48px;min-width:48px;border:1px solid #ddd;border-radius:50%;
+          background:#fff;color:#111;place-items:center;font-size:24px;line-height:1;box-shadow:0 8px 24px rgba(0,0,0,.15);
+          padding:0;touch-action:none;user-select:none;cursor:grab;pointer-events:auto;z-index:2101
+        }
+        .mobile-search-fab:active{cursor:grabbing}
+        .mobile-search-fab.open{box-shadow:0 8px 28px rgba(0,0,0,.22)}
+        .mobile-search-panel{
+          display:flex;position:fixed;width:min(52vw,300px);min-width:210px;height:48px;align-items:center;
+          border:1px solid #ddd;border-radius:999px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.16);
+          padding:0 10px 0 16px;pointer-events:auto;z-index:2100
+        }
+        .mobile-search-panel input{border:0;outline:0;background:transparent;min-width:0;width:100%;font-size:14px;padding:10px 0}
+        .mobile-search-panel button{border:0;background:transparent;font-size:23px;line-height:1;cursor:pointer}
+      }
   `]
 })
 export class AppComponent {
