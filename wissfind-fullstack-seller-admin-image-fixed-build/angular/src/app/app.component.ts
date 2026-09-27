@@ -14,11 +14,11 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
     <header class="header" *ngIf="!isWorkspace"><div class="container nav"><a routerLink="/" class="brand">WISS<span>FIND</span></a><div class="links-wrap"><nav class="links" *ngIf="isCustomer"><a href="#shop" (click)="goHomeCategory($event, 'All')">Shop</a><a href="#shop" (click)="goHomeCategory($event, 'Fashion')">Fashion</a><a href="#shop" (click)="goHomeCategory($event, 'Electronics')">Electronics</a><a href="#shop" (click)="goHomeCategory($event, 'Home & Living')">Home</a><a href="#shop" (click)="goHomeCategory($event, 'Beauty')">Beauty</a><a href="#shop" (click)="goHomeCategory($event, 'Sports & Fitness')">Sports</a><a routerLink="/ai-shop">AI Shop</a><a routerLink="/compare">Compare</a><a href="#shop" (click)="goHomeCategory($event, 'All')" class="offers">Offers <b>New</b></a></nav><button class="mobile-links-arrow" *ngIf="isCustomer" type="button" aria-label="Show more categories" (click)="scrollLinks()">››</button></div><div class="search" *ngIf="isCustomer"><input #searchBox type="search" placeholder="Search products..." [value]="searchTerm" (input)="onSearchInput(searchBox.value)" (keyup.enter)="search(searchBox.value)"><button type="button" aria-label="Search" (click)="search(searchBox.value)">⌕</button></div><div class="actions-wrap"><div class="actions"><ng-container *ngIf="isCustomer"><a class="orders-link" routerLink="/orders">Orders</a><a class="orders-link" routerLink="/returns">Returns</a><a class="orders-link" routerLink="/price-alerts">Price alerts</a><a class="orders-link wishlist-link" routerLink="/wishlist">Wishlist<span *ngIf="wishlist.count()">{{wishlist.count()}}</span></a><a class="cart-link" routerLink="/cart"><span class="cart-icon">🛒</span><span class="cart-copy"><strong>Cart</strong><small>₹{{cart.subtotal()|number}}</small></span><span class="cart-badge" *ngIf="cart.count()">{{cart.count()}}</span></a></ng-container><ng-container *ngIf="auth.user();else guest"><a *ngIf="isCustomer" class="seller-link" routerLink="/seller/register">Become a Seller</a><a *ngIf="isSeller" class="workspace-link" routerLink="/seller">Seller Center</a><a *ngIf="isAdmin" class="workspace-link" routerLink="/admin">Admin Panel</a><button class="icon-btn" (click)="logout()">Logout</button></ng-container><ng-template #guest><a class="icon-btn" routerLink="/login">Login</a><a class="icon-btn filled" routerLink="/signup">Sign up</a></ng-template></div><button class="mobile-scroll-arrow" type="button" aria-label="Show more header options" (click)="scrollActions()">››</button></div></div></header>
     <div class="header-spacer" *ngIf="!isWorkspace"></div>
     <div class="mobile-search-layer" *ngIf="isCustomer">
-      <div class="mobile-search-panel" *ngIf="mobileSearchOpen()">
+      <div class="mobile-search-panel" *ngIf="mobileSearchOpen()" [style.left.px]="searchPanelLeft()" [style.top.px]="mobileSearchTop()">
         <input #mobileSearchBox type="search" placeholder="Search products..." [value]="searchTerm" (input)="searchTerm=mobileSearchBox.value" (keyup.enter)="search(mobileSearchBox.value)" autofocus>
         <button type="button" aria-label="Search" (click)="search(mobileSearchBox.value)">⌕</button>
       </div>
-      <button type="button" class="mobile-search-fab" [class.open]="mobileSearchOpen()" [style.left.px]="mobileSearchLeft()" aria-label="Search products" (click)="toggleMobileSearch($event)" (pointerdown)="startSearchDrag($event)" (pointermove)="dragSearch($event)" (pointerup)="endSearchDrag($event)" (pointercancel)="endSearchDrag($event)">
+      <button type="button" class="mobile-search-fab" [class.open]="mobileSearchOpen()" [style.left.px]="mobileSearchLeft()" [style.top.px]="mobileSearchTop()" aria-label="Search products" (click)="toggleMobileSearch($event)" (pointerdown)="startSearchDrag($event)" (pointermove)="dragSearch($event)" (pointerup)="endSearchDrag($event)" (pointercancel)="endSearchDrag($event)">
         ⌕
       </button>
     </div>
@@ -52,13 +52,12 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
       }
       .mobile-search-panel input{border:0;outline:0;background:transparent;min-width:0;width:100%;font-size:14px;padding:10px 0}
       .mobile-search-panel button{border:0;background:transparent;font-size:23px;line-height:1;cursor:pointer}
-      .mobile-search-panel + .mobile-search-fab{left:auto!important;right:14px}
       .header-spacer{height:171px}.nav{min-height:auto;gap:8px 10px;padding:9px 0}.brand{font-size:19px}.actions-wrap{order:2;margin-left:auto;max-width:calc(100% - 125px);padding-bottom:2px;overflow:hidden}.actions{max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding-right:2px}.mobile-scroll-arrow{display:block;margin-left:5px}.links-wrap{order:3;flex-basis:100%;width:100%;display:flex;align-items:center;gap:5px;overflow:hidden}.links{flex:1 1 auto;width:auto;gap:15px;padding:5px 2px 4px;border-top:1px solid var(--line);overflow-x:auto;flex-wrap:nowrap}.mobile-links-arrow{display:block;margin-left:0}.search{order:4;flex-basis:100%;width:100%;max-width:none;min-width:0}.search input{padding:10px 0}.orders-link{display:inline-flex;font-size:12px;padding:8px 9px}.cart-copy{display:none}.cart-link{min-width:32px}.icon-btn{padding:8px 11px}.admin-tools{overflow:auto;white-space:nowrap}.seller-tools{padding:9px 12px}.seller-tools-inner{align-items:flex-start}.telegram-connect-btn{margin-left:auto}.footer-inner{align-items:flex-start;flex-wrap:wrap;gap:20px}.footer-support{min-width:150px}}@media(max-width:430px){.actions-wrap{max-width:calc(100% - 115px)}.icon-btn{padding:8px 10px;font-size:12px}.links{gap:14px;font-size:13px}}
   `]
 })
 export class AppComponent {
   readonly auth=inject(AuthService);readonly cart=inject(CartService);readonly wishlist=inject(WishlistService);private readonly router=inject(Router);private readonly api=inject(BackendApiService);
-  telegramConnected=false;telegramBusy=false;telegramError='';searchTerm='';private searchTimer?:number;mobileSearchOpen=signal(false);mobileSearchLeft=signal(0);private draggingSearch=false;private searchDragMoved=false;private suppressSearchClick=false;private searchDragOffset=0;
+  telegramConnected=false;telegramBusy=false;telegramError='';searchTerm='';private searchTimer?:number;mobileSearchOpen=signal(false);mobileSearchLeft=signal(0);private draggingSearch=false;private searchDragMoved=false;private suppressSearchClick=false;private searchDragOffsetX=0;private searchDragOffsetY=0;mobileSearchTop=signal(184);
   get isCustomer(){return this.auth.getRole()==='CUSTOMER'}get isSeller(){return this.auth.getRole()==='SELLER'}get isAdmin(){return this.auth.getRole()==='ADMIN'}get isWorkspace(){return this.isSeller||this.isAdmin}get isHome(){return this.router.url==='/'||this.router.url.startsWith('/?')}
   constructor(){void this.loadTelegramStatus();if(this.isCustomer)void this.wishlist.load();queueMicrotask(()=>this.positionSearchFab());}
   goHomeCategory(event:Event,category:'All'|'Fashion'|'Electronics'|'Home & Living'|'Beauty'|'Sports & Fitness'){event.preventDefault();if(this.isHome){const section=document.getElementById('shop');window.dispatchEvent(new CustomEvent('wissfind-category-change',{detail:category}));setTimeout(()=>section?.scrollIntoView({behavior:'smooth',block:'start'}),0);return;}void this.router.navigate(['/'],{queryParams:{category},fragment:'shop'});}
@@ -73,21 +72,33 @@ export class AppComponent {
       else this.router.navigate(['/'],{queryParams:{},fragment:'shop'});
     },280);
   }
-  private positionSearchFab(){if(typeof window==='undefined')return;this.mobileSearchLeft.set(Math.max(8,window.innerWidth-64));}
-  @HostListener('window:resize') onWindowResize(){if(typeof window!=='undefined'&&window.innerWidth<=700&&!this.draggingSearch)this.positionSearchFab();}
+  private positionSearchFab(){
+    if(typeof window==='undefined')return;
+    this.mobileSearchLeft.set(Math.max(8,window.innerWidth-64));
+    this.mobileSearchTop.set(Math.min(240,Math.max(70,window.innerHeight-110)));
+  }
+  searchPanelLeft(){
+    if(typeof window==='undefined')return 14;
+    const width=Math.min(window.innerWidth*0.52,300);
+    return Math.min(window.innerWidth-width-8,Math.max(8,this.mobileSearchLeft()-width+48));
+  }
+  @HostListener('window:resize') onWindowResize(){if(typeof window!=='undefined'&&window.innerWidth<=700&&!this.draggingSearch){this.mobileSearchLeft.set(Math.min(window.innerWidth-56,Math.max(8,this.mobileSearchLeft())));this.mobileSearchTop.set(Math.min(window.innerHeight-56,Math.max(70,this.mobileSearchTop())));}}
   startSearchDrag(event:PointerEvent){
     if(event.button!==0&&event.pointerType!=='touch')return;
     const target=event.currentTarget as HTMLElement;
     const rect=target.getBoundingClientRect();
-    this.draggingSearch=true;this.searchDragMoved=false;this.searchDragOffset=event.clientX-rect.left;
+    this.draggingSearch=true;this.searchDragMoved=false;this.searchDragOffsetX=event.clientX-rect.left;this.searchDragOffsetY=event.clientY-rect.top;
     try{target.setPointerCapture(event.pointerId);}catch{}
   }
   dragSearch(event:PointerEvent){
     if(!this.draggingSearch||typeof window==='undefined')return;
-    const next=event.clientX-this.searchDragOffset;
-    const clamped=Math.min(window.innerWidth-56,Math.max(8,next));
-    if(Math.abs(clamped-this.mobileSearchLeft())>3)this.searchDragMoved=true;
-    this.mobileSearchLeft.set(clamped);
+    const nextX=event.clientX-this.searchDragOffsetX;
+    const nextY=event.clientY-this.searchDragOffsetY;
+    const clampedX=Math.min(window.innerWidth-56,Math.max(8,nextX));
+    const clampedY=Math.min(window.innerHeight-56,Math.max(70,nextY));
+    if(Math.abs(clampedX-this.mobileSearchLeft())>3||Math.abs(clampedY-this.mobileSearchTop())>3)this.searchDragMoved=true;
+    this.mobileSearchLeft.set(clampedX);
+    this.mobileSearchTop.set(clampedY);
     event.preventDefault();
   }
   endSearchDrag(event:PointerEvent){
