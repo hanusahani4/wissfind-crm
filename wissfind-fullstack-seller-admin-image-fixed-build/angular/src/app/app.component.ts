@@ -1,5 +1,5 @@
-import { Component, inject } from '@angular/core';
-import { DecimalPipe, NgIf } from '@angular/common';
+import { Component, HostListener, inject, signal } from '@angular/core';
+import { DecimalPipe, NgFor, NgIf } from '@angular/common';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { CartService } from './core/cart.service';
@@ -98,7 +98,7 @@ export class AppComponent {
   }
   toggleMobileSearch(event:Event){
     if(this.suppressSearchClick){event.preventDefault();this.suppressSearchClick=false;return;}
-    this.mobileSearchOpen.update(v=>!v);
+    this.mobileSearchOpen.update((v: boolean)=>!v);
   }
   search(term:string){
     const value=term.trim();
