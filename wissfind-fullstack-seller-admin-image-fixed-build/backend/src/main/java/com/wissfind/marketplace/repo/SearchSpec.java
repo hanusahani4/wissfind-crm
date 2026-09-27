@@ -9,17 +9,29 @@ public final class SearchSpec {
 
     public static <T> Specification<T> contains(String value, String... fields) {
         if (value == null || value.isBlank()) return null;
-        String like = "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        String[] terms = normalized.split("\\s+");
         return (root, query, cb) -> {
-            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
-            for (String field : fields) {
-                try {
-                    Path<?> path = root;
-                    for (String part : field.split("\\.")) path = path.get(part);
-                    predicates.add(cb.like(cb.lower(path.as(String.class)), like));
-                } catch (IllegalArgumentException ignored) { }
+            var termPredicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            for (String term : terms) {
+                if (term.isBlank()) continue;
+                String like = "%" + term + "%";
+                var fieldPredicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+                for (String field : fields) {
+                    try {
+                        Path<?> path = root;
+                        for (String part : field.split("\\.")) path = path.get(part);
+                        fieldPredicates.add(cb.like(cb.lower(path.as(String.class)), like));
+                    } catch (IllegalArgumentException ignored) { }
+                }
+                if (!fieldPredicates.isEmpty()) {
+                    // Every search word must match at least one searchable field.
+                    termPredicates.add(cb.or(fieldPredicates.toArray(new jakarta.persistence.criteria.Predicate[0])));
+                }
             }
-            return predicates.isEmpty() ? cb.conjunction() : cb.or(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return termPredicates.isEmpty()
+                    ? cb.conjunction()
+                    : cb.and(termPredicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
     }
 

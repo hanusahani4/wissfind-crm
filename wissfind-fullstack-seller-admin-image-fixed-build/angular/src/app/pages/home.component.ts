@@ -30,20 +30,38 @@ export class HomeComponent implements OnDestroy {
   @HostListener('window:wissfind-category-change',['$event']) onHeaderCategoryChange(event:Event){const category=(event as CustomEvent).detail as CategoryFilter;if(this.topCategories.includes(category))this.selectCategory(category);}
   @HostListener('window:scroll') onWindowScroll(){if(typeof window==='undefined')return;const nearBottom=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-700;if(nearBottom)void this.loadNextPage();}
   private readonly productService=inject(ProductService); private readonly cart=inject(CartService); private readonly router=inject(Router); private readonly auth=inject(AuthService); readonly wishlist=inject(WishlistService); private readonly pageAbort=new AbortController(); readonly reviews=inject(ReviewService); private route=inject(ActivatedRoute); private products=this.productService.products;
-  query=signal(''); category=signal<CategoryFilter>('All'); subcategory=signal('All'); detail=signal('All'); sort=signal('featured');
+  query=signal(''); searchResults=signal<any[]>([]); searching=signal(false); private searchRequestId=0; private searchAbort?:AbortController; category=signal<CategoryFilter>('All'); subcategory=signal('All'); detail=signal('All'); sort=signal('featured');
   readonly pageSize=20; private nextPage=1; private totalPages=1; loadingMore=signal(false); allLoaded=signal(false);
   readonly topCategories:CategoryFilter[]=['All','Fashion','Electronics','Home & Living','Beauty','Sports & Fitness','Books & Stationery','Grocery','Travel'];
   readonly categoryMap:Record<string,string[]>={Fashion:['Men','Women','Kids','Accessories','Footwear'],Electronics:['Smartphones','Laptops','Tablets','Audio','Wearables','Gaming','Cameras','TVs & Displays','Accessories'],'Home & Living':['Furniture','Kitchen','Home Decor','Lighting','Storage','Appliances'],Beauty:['Skincare','Makeup','Hair Care','Fragrances','Grooming'],'Sports & Fitness':['Running','Gym','Yoga','Cycling','Sports Shoes','Fitness Equipment'],'Books & Stationery':['Books','Notebooks','Pens','Office Supplies','Art & Craft'],Grocery:['Snacks','Beverages','Packaged Food','Household Essentials'],Travel:['Luggage','Backpacks','Travel Accessories']};
   readonly detailMap:Record<string,string[]>={'Fashion:Men':['T-Shirts','Shirts','Jeans','Trousers','Jackets','Sneakers','Watches','Bags'],'Fashion:Women':['Dresses','Tops','Jeans','Skirts','Jackets','Heels','Sneakers','Handbags','Jewellery'],'Fashion:Kids':['Boys','Girls','Baby'],'Fashion:Accessories':['Sunglasses','Belts','Wallets','Caps','Watches'],'Electronics:Audio':['Headphones','Earbuds','Speakers'],'Electronics:Gaming':['Gaming Laptops','Keyboards','Mouse','Headsets','Controllers'],'Electronics:Accessories':['Chargers','Power Banks','Cables','Cases']};
-  constructor(){if(this.auth.getRole()==='CUSTOMER')void this.wishlist.load();void this.loadInitial();this.route.queryParamMap.subscribe(params=>{this.query.set((params.get('q')||'').toLowerCase());});}
+  constructor(){if(this.auth.getRole()==='CUSTOMER')void this.wishlist.load();this.route.queryParamMap.subscribe(params=>{const q=(params.get('q')||'').trim();this.query.set(q.toLowerCase());void this.performSearch(q);});void this.loadInitial();}
   ngOnDestroy(){this.pageAbort.abort();}
   private async loadInitial(){const result=await this.productService.loadHomePage(0,this.pageSize,this.pageAbort.signal);this.totalPages=result.totalPages;this.nextPage=1;this.allLoaded.set(this.nextPage>=this.totalPages);}
   private async loadNextPage(){if(this.loadingMore()||this.allLoaded()||this.nextPage>=this.totalPages)return;this.loadingMore.set(true);try{const result=await this.productService.loadHomePage(this.nextPage,this.pageSize,this.pageAbort.signal);this.totalPages=result.totalPages;this.nextPage++;this.allLoaded.set(this.nextPage>=this.totalPages);}finally{this.loadingMore.set(false);}}
+  private async performSearch(term:string){
+    const q=term.trim();
+    const requestId=++this.searchRequestId;
+    this.searchAbort?.abort();
+    if(!q){this.searchResults.set([]);this.searching.set(false);return;}
+    const controller=new AbortController();
+    this.searchAbort=controller;
+    this.searching.set(true);
+    try{
+      const result=await this.productService.searchProducts(q,0,50,controller.signal);
+      if(requestId!==this.searchRequestId)return;
+      this.searchResults.set(result.items);
+    }catch{
+      if(requestId===this.searchRequestId)this.searchResults.set([]);
+    }finally{
+      if(requestId===this.searchRequestId)this.searching.set(false);
+    }
+  }
   subcategoriesFor(c:CategoryFilter){return this.categoryMap[c]||[];} displaySubcategory(v:string){return v==='Wearables'?'Smartwatches':v;} detailCategoriesFor(c:CategoryFilter,s:string){return this.detailMap[`${c}:${s}`]||[];}
   selectCategory(c:CategoryFilter){this.category.set(c);this.subcategory.set('All');this.detail.set('All');} selectSubcategory(s:string){this.subcategory.set(s);this.detail.set('All');} selectDetail(d:string){this.detail.set(d);} changeSort(v:string){this.sort.set(v);}
   matchesSubcategory(p:any){if(this.subcategory()==='All')return true;const value=`${p.subcategory||''} ${p.type||''} ${(p.tags||[]).join(' ')}`.toLowerCase();const aliases:Record<string,string[]>={Men:['men'],Women:['women'],Kids:['kids','boys','girls','baby'],Footwear:['footwear','sneaker','shoe'],Accessories:['accessor','bag'],Wearables:['wearable','smartwatch','smart watch'],'TVs & Displays':['tv','display','television'],'Sports Shoes':['running','shoe'],'Fitness Equipment':['fitness','gym','equipment'],'Home Decor':['home decor','decor','lamp'],'Hair Care':['hair'],'Office Supplies':['office'],'Travel Accessories':['travel','accessory']};return (aliases[this.subcategory()]||[this.subcategory().toLowerCase()]).some(term=>value.includes(term));}
   matchesDetail(p:any){if(this.detail()==='All')return true;const value=`${p.name} ${p.subcategory||''} ${p.type||''} ${(p.tags||[]).join(' ')}`.toLowerCase();return value.includes(this.detail().toLowerCase().replace(/s$/,''));}
-  filtered=computed(()=>{this.productService.productsVersion();let list=this.products.filter(p=>this.category()==='All'||p.category===this.category());if(this.subcategory()!=='All')list=list.filter(p=>this.matchesSubcategory(p));if(this.detail()!=='All')list=list.filter(p=>this.matchesDetail(p));const q=this.query();if(q)list=list.filter(p=>`${p.name} ${p.category} ${p.subcategory} ${p.tags.join(' ')}`.toLowerCase().includes(q));switch(this.sort()){case'low':return[...list].sort((a,b)=>a.price-b.price);case'high':return[...list].sort((a,b)=>b.price-a.price);case'rating':return[...list].sort((a,b)=>b.rating-a.rating);default:return list;}});
+  filtered=computed(()=>{this.productService.productsVersion();let list=this.query()?this.searchResults():this.products;list=list.filter((p:any)=>this.category()==='All'||p.category===this.category());if(this.subcategory()!=='All')list=list.filter((p:any)=>this.matchesSubcategory(p));if(this.detail()!=='All')list=list.filter((p:any)=>this.matchesDetail(p));switch(this.sort()){case'low':return[...list].sort((a,b)=>a.price-b.price);case'high':return[...list].sort((a,b)=>b.price-a.price);case'rating':return[...list].sort((a,b)=>b.rating-a.rating);default:return list;}});
   pagedProducts=computed(()=>this.filtered());
   starText(rating:number){const full=Math.round(rating);return '★'.repeat(full)+'☆'.repeat(5-full);} async toggleWishlist(event:Event,id:string|number){
     event.preventDefault();
