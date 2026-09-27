@@ -58,7 +58,7 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
 })
 export class AppComponent {
   readonly auth=inject(AuthService);readonly cart=inject(CartService);readonly wishlist=inject(WishlistService);private readonly router=inject(Router);private readonly api=inject(BackendApiService);
-  telegramConnected=false;telegramBusy=false;telegramError='';searchTerm='';private searchTimer?:number;mobileSearchOpen=signal(false);mobileSearchLeft=signal(0);private draggingSearch=false;private searchDragMoved=false;private searchDragOffset=0;
+  telegramConnected=false;telegramBusy=false;telegramError='';searchTerm='';private searchTimer?:number;mobileSearchOpen=signal(false);mobileSearchLeft=signal(0);private draggingSearch=false;private searchDragMoved=false;private suppressSearchClick=false;private searchDragOffset=0;
   get isCustomer(){return this.auth.getRole()==='CUSTOMER'}get isSeller(){return this.auth.getRole()==='SELLER'}get isAdmin(){return this.auth.getRole()==='ADMIN'}get isWorkspace(){return this.isSeller||this.isAdmin}get isHome(){return this.router.url==='/'||this.router.url.startsWith('/?')}
   constructor(){void this.loadTelegramStatus();if(this.isCustomer)void this.wishlist.load();queueMicrotask(()=>this.positionSearchFab());}
   goHomeCategory(event:Event,category:'All'|'Fashion'|'Electronics'|'Home & Living'|'Beauty'|'Sports & Fitness'){event.preventDefault();if(this.isHome){const section=document.getElementById('shop');window.dispatchEvent(new CustomEvent('wissfind-category-change',{detail:category}));setTimeout(()=>section?.scrollIntoView({behavior:'smooth',block:'start'}),0);return;}void this.router.navigate(['/'],{queryParams:{category},fragment:'shop'});}
@@ -94,10 +94,10 @@ export class AppComponent {
     if(!this.draggingSearch)return;
     this.draggingSearch=false;
     try{(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);}catch{}
-    if(this.searchDragMoved)this.searchDragMoved=false;
+    if(this.searchDragMoved)this.suppressSearchClick=true;
   }
   toggleMobileSearch(event:Event){
-    if(this.searchDragMoved){event.preventDefault();return;}
+    if(this.suppressSearchClick){event.preventDefault();this.suppressSearchClick=false;return;}
     this.mobileSearchOpen.update(v=>!v);
   }
   search(term:string){
