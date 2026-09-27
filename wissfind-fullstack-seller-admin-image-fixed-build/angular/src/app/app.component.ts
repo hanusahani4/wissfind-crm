@@ -16,7 +16,6 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
     <div class="mobile-search-layer" *ngIf="isCustomer">
       <div class="mobile-search-panel" *ngIf="mobileSearchOpen()" [style.left.px]="searchPanelLeft()" [style.top.px]="mobileSearchTop()">
         <input #mobileSearchBox type="search" placeholder="Search products..." [value]="searchTerm" (input)="searchTerm=mobileSearchBox.value" (keyup.enter)="search(mobileSearchBox.value)" autofocus>
-        <button type="button" aria-label="Search" (click)="search(mobileSearchBox.value)">⌕</button>
       </div>
       <button type="button" class="mobile-search-fab" [class.open]="mobileSearchOpen()" [style.left.px]="mobileSearchLeft()" [style.top.px]="mobileSearchTop()" aria-label="Search products" (click)="toggleMobileSearch($event)" (pointerdown)="startSearchDrag($event)" (pointermove)="dragSearch($event)" (pointerup)="endSearchDrag($event)" (pointercancel)="endSearchDrag($event)">
         ⌕
@@ -46,9 +45,9 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
       .mobile-search-fab:active{cursor:grabbing}
       .mobile-search-fab.open{box-shadow:0 8px 28px rgba(0,0,0,.22)}
       .mobile-search-panel{
-        display:flex;position:fixed;top:184px;left:14px;right:14px;height:48px;align-items:center;
+        display:flex;position:fixed;width:min(52vw,300px);min-width:210px;height:48px;align-items:center;
         border:1px solid #ddd;border-radius:999px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.16);
-        padding:0 10px 0 16px;pointer-events:auto;z-index:2100
+        padding:0 16px;pointer-events:auto;z-index:2100
       }
       .mobile-search-panel input{border:0;outline:0;background:transparent;min-width:0;width:100%;font-size:14px;padding:10px 0}
       .mobile-search-panel button{border:0;background:transparent;font-size:23px;line-height:1;cursor:pointer}
@@ -98,7 +97,11 @@ export class AppComponent {
   searchPanelLeft(){
     if(typeof window==='undefined')return 14;
     const width=Math.min(window.innerWidth*0.52,300);
-    return Math.min(window.innerWidth-width-8,Math.max(8,this.mobileSearchLeft()-width+48));
+    const gap=8;
+    const leftSide=this.mobileSearchLeft() < window.innerWidth/2;
+    return leftSide
+      ? Math.min(window.innerWidth-width-8,this.mobileSearchLeft()+56+gap)
+      : Math.max(8,this.mobileSearchLeft()-width-gap);
   }
   @HostListener('window:resize') onWindowResize(){if(typeof window!=='undefined'&&window.innerWidth<=700&&!this.draggingSearch){this.mobileSearchLeft.set(Math.min(window.innerWidth-56,Math.max(8,this.mobileSearchLeft())));this.mobileSearchTop.set(Math.min(window.innerHeight-56,Math.max(70,this.mobileSearchTop())));}}
   startSearchDrag(event:PointerEvent){
