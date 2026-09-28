@@ -39,7 +39,20 @@ export class ProductService {
     }
   }
 
+  private homePageInFlight?: Promise<{items:Product[];total:number;totalPages:number}>;
   async loadHomePage(page:number,size=20,signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}>{
+    const safePage=Math.max(0,page);
+    if(safePage===0 && this.homePageInFlight) return this.homePageInFlight;
+    const request=this.loadHomePageInternal(page,size,signal);
+    if(safePage===0) this.homePageInFlight=request;
+    try{
+      return await request;
+    }finally{
+      if(safePage===0 && this.homePageInFlight===request) this.homePageInFlight=undefined;
+    }
+  }
+
+  private async loadHomePageInternal(page:number,size=20,signal?:AbortSignal):Promise<{items:Product[];total:number;totalPages:number}>{
     const safePage=Math.max(0,page),safeSize=Math.min(24,Math.max(1,size));
     if(this.homePages.has(safePage)){
       const total=this.catalogueTotal();
