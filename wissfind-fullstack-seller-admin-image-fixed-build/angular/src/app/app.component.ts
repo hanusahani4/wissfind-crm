@@ -30,7 +30,6 @@ import { HomepageSectionsComponent } from './pages/homepage-sections.component';
       <div class="seller-tools-error" *ngIf="telegramError">{{telegramError}}</div>
     </div>
     <router-outlet />
-    <app-homepage-sections *ngIf="!isWorkspace && isHome" />
     <footer class="footer" *ngIf="!isWorkspace"><div class="container footer-inner"><div><div class="brand">WISS<span>FIND</span></div><p>Everyday style. Smarter tech.</p></div><div class="footer-support"><strong>Customer Support</strong><a href="tel:+918299360496">8299360496</a></div><div class="muted">© 2026 WissFind</div></div></footer>
   `,
   styles: [`
