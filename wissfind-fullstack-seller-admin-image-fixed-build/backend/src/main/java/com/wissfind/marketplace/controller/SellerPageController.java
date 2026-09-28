@@ -71,7 +71,13 @@ public class SellerPageController {
         for(Product p:rows){
             if(p==null||p.id==null) continue;
             List<ProductColorVariant> variants=colorVariants.findByProductIdOrderByIdAsc(p.id);
-            if(variants.isEmpty()) continue;
+            if(variants.isEmpty()){
+                // Non-variant products use the parent product stock directly.
+                // Never keep a non-variant product LIVE when its stock is zero.
+                if(p.stock<=0) p.status=Product.Status.OUT_OF_STOCK;
+                else if(p.status==Product.Status.OUT_OF_STOCK) p.status=Product.Status.LIVE;
+                continue;
+            }
             int total=0;
             for(ProductColorVariant color:variants){
                 if(color.sizes!=null){
