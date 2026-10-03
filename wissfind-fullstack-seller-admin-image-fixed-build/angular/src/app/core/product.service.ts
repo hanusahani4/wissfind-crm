@@ -129,14 +129,23 @@ export class ProductService {
   }
   private absoluteUrl(url:string){
     if(!url)return '';
-    if(/^https?:\/\//i.test(url))return url;
-    const normalized=url.startsWith('/')?url:`/${url}`;
-    if(typeof window!=='undefined'){
-      if(this.api.baseUrl.startsWith('http://')||this.api.baseUrl.startsWith('https://')){
-        try{return new URL(normalized,this.api.baseUrl.replace(/\/api\/?$/,'/')).toString();}catch{}
+    try{
+      if(typeof window!=='undefined'){
+        const parsed=new URL(url,window.location.origin);
+        const isLocalHost=/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(parsed.hostname);
+        const isCurrentHost=parsed.origin===window.location.origin;
+        if(isLocalHost&&!/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(window.location.hostname)){
+          return `${window.location.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+        }
+        if(isCurrentHost)return parsed.toString();
+        if(/^https?:\/\//i.test(url))return parsed.toString();
+        return parsed.toString();
       }
-      return `${window.location.origin}${normalized}`;
+      if(/^https?:\/\//i.test(url))return url;
+      return url.startsWith('/')?url:`/${url}`;
+    }catch{
+      const normalized=url.startsWith('/')?url:`/${url}`;
+      return typeof window!=='undefined'?`${window.location.origin}${normalized}`:normalized;
     }
-    return normalized;
   }
 }
