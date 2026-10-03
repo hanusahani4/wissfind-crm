@@ -39,8 +39,6 @@ export class BackendApiService {
 
   private handleError(error: unknown): never {
     if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
-      // Treat an unauthorized/forbidden session response as an invalid session
-      // for this storefront so the user is never left in a broken signed-in state.
       this.expireSession();
     }
     throw error;
@@ -82,9 +80,93 @@ export class BackendApiService {
   patch<T>(path: string, body: unknown = {}, params?: Record<string, string | number>, signal?: AbortSignal): Promise<T> { return this.request(this.http.patch<T>(`${this.baseUrl}${path}`, body, { headers: this.authHeaders(), params }), signal); }
   delete<T = void>(path: string, signal?: AbortSignal): Promise<T> { return this.request(this.http.delete<T>(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), signal); }
   getBlob(path: string, signal?: AbortSignal): Promise<Blob> { return this.request(this.http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders(), responseType: 'blob' }), signal); }
-  upload<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
+
+  /**
+   * Production nginx currently rejects large multipart bodies before they reach
+   * Spring. Keep a single image <= 600 KB and keep multi-image requests below
+   * ~850 KB total. Compression happens only when Save actually uploads; file
+   * selection itself never sends a network request.
+   */
+  async upload<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
+    const prepared = await this.prepareImageUpload(formData);
     let headers = this.authHeaders();
     headers = headers.delete('Content-Type');
-    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, formData, { headers }), signal);
+    return this.request(this.http.post<T>(`${this.baseUrl}${path}`, prepared, { headers }), signal);
+  }
+
+  private async prepareImageUpload(formData: FormData): Promise<FormData> {
+    const entries = Array.from(formData.entries());
+    const imageFiles = entries.filter(([, value]) => value instanceof File && value.type.startsWith('image/')) as [string, File][];
+    if (!imageFiles.length) return formData;
+
+    const totalBudget = 850 * 1024;
+    const perImageBudget = Math.min(600 * 1024, Math.floor(totalBudget / imageFiles.length));
+    const prepared = new FormData();
+    let imageIndex = 0;
+
+    for (const [name, value] of entries) {
+      if (value instanceof File && value.type.startsWith('image/')) {
+        const compressed = await this.compressImage(value, perImageBudget);
+        prepared.append(name, compressed, compressed.name);
+        imageIndex++;
+      } else {
+        prepared.append(name, value);
+      }
+    }
+
+    void imageIndex;
+    return prepared;
+  }
+
+  private async compressImage(file: File, maxBytes: number): Promise<File> {
+    // GIFs can contain animation; don't flatten them into a single frame.
+    if (file.type === 'image/gif' || file.size <= maxBytes) return file;
+
+    const bitmap = await createImageBitmap(file);
+    try {
+      const maxDimension = 1600;
+      const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { alpha: true });
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0, width, height);
+
+      let quality = 0.82;
+      let blob = await this.canvasBlob(canvas, quality);
+      while (blob.size > maxBytes && quality > 0.35) {
+        quality -= 0.07;
+        blob = await this.canvasBlob(canvas, quality);
+      }
+
+      // If quality alone is not enough, progressively reduce dimensions.
+      let currentCanvas = canvas;
+      while (blob.size > maxBytes && currentCanvas.width > 640) {
+        const next = document.createElement('canvas');
+        next.width = Math.max(640, Math.round(currentCanvas.width * 0.8));
+        next.height = Math.max(480, Math.round(currentCanvas.height * 0.8));
+        const nextCtx = next.getContext('2d', { alpha: true });
+        if (!nextCtx) break;
+        nextCtx.drawImage(currentCanvas, 0, 0, next.width, next.height);
+        currentCanvas = next;
+        quality = Math.max(0.45, quality);
+        blob = await this.canvasBlob(currentCanvas, quality);
+      }
+
+      if (blob.size >= file.size || blob.size > maxBytes) return file;
+      const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+      return new File([blob], `${baseName}.webp`, { type: 'image/webp', lastModified: file.lastModified });
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  private canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Unable to compress image')), 'image/webp', quality);
+    });
   }
 }
