@@ -57,7 +57,7 @@ export class ProductService {
         existing.add(key);
       }else{
         const i=this.products.findIndex(x=>String(x.id)===key);
-        if(i>=0)this.products[i]=this.mergeProduct(this.products[i],incoming);
+        if(i>=0)this.mergeProduct(this.products[i],incoming);
       }
     }
     this.homePages.add(safePage);this.catalogueTotal.set(total);this.productsVersion.update(v=>v+1);if(safePage===0)this.saveHomeCache();items.forEach((p:Product)=>this.saveCachedProduct(p));
@@ -69,7 +69,8 @@ export class ProductService {
     const existingImages=Array.isArray(existing.images)?existing.images.filter(Boolean):[];
     const image=incoming.image||existing.image||incomingImages[0]||existingImages[0]||'';
     const images=incomingImages.length?incomingImages:(existingImages.length?existingImages:(image?[image]:[]));
-    return {...existing,...incoming,image,images};
+    Object.assign(existing,{...incoming,image,images});
+    return existing;
   }
 
   private startAutoRefresh(){if(this.refreshStarted||typeof window==='undefined')return;this.refreshStarted=true;this.refreshTimer=window.setInterval(()=>this.refreshIfVisible(),30000);}
