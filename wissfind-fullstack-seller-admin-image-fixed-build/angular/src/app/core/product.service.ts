@@ -49,7 +49,6 @@ export class ProductService {
     const items:Product[]=Array.isArray(data?.content)?data.content.map((x:any)=>this.map(x)):[];
     const total=Number(data?.totalElements||0);
     const totalPages=Math.max(1,Number(data?.totalPages||Math.ceil(total/safeSize)||1));
-    if(safePage===0){this.products.splice(0,this.products.length);}
     const existing=new Set(this.products.map(p=>String(p.id)));
     for(const incoming of items){
       const key=String(incoming.id);
