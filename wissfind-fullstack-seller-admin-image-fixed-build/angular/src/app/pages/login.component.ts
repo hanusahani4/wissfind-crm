@@ -16,13 +16,14 @@ import { AuthService } from '../core/auth.service';
       <p class="error" *ngIf="error">{{error}}</p>
       <button class="btn" [disabled]="loading">{{loading ? 'Signing in…' : 'Sign in'}}</button>
     </form>
-    <p class="forgot"><a routerLink="/forgot-password">Forgot password?</a></p><p class="switch">New here? <a routerLink="/signup">Create an account</a></p>
+    <p class="forgot"><a routerLink="/forgot-password">Forgot password?</a></p><p class="switch">New here? <a routerLink="/signup" [queryParams]="returnUrl ? {returnUrl:returnUrl} : null">Create an account</a></p>
   </div></main>`,
   styles:[`.auth-page{min-height:70vh;display:grid;place-items:center;padding:50px 16px}.auth-card{width:min(430px,100%);padding:32px}.auth-card h1{margin:10px 0 8px}.auth-card form{display:grid;gap:16px;margin-top:26px}.forgot{text-align:right;margin:-7px 0 0;font-size:12px}.forgot a{font-weight:800;color:#111}.switch{text-align:center;color:#777;font-size:13px}.switch a{color:#111;font-weight:800}.auth-card .btn{width:100%;margin-top:4px}`]
 })
 export class LoginComponent {
   private auth=inject(AuthService); private router=inject(Router); private route=inject(ActivatedRoute); private cdr=inject(ChangeDetectorRef);
   phone=''; password=''; loading=false; error='';
+  returnUrl=this.route.snapshot.queryParamMap.get('returnUrl')||'';
   async submit(){
     this.loading=true; this.error=''; this.cdr.markForCheck();
     try {
