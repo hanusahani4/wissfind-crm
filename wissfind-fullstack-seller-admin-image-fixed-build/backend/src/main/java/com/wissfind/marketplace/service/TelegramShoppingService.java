@@ -127,7 +127,13 @@ public class TelegramShoppingService {
             }
             rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
             if (websiteUrl.isBlank()) text += "\n\nWebsite checkout is not configured yet. Please contact the store admin.";
-            sendMessage(chatId, text, keyboard(rows));
+            Map<String, Object> replyKeyboard = keyboard(rows);
+            String imageUrl = productImage(p);
+            if (!imageUrl.isBlank()) {
+                sendPhoto(chatId, imageUrl, text, replyKeyboard);
+            } else {
+                sendMessage(chatId, text, replyKeyboard);
+            }
             return;
         }
 
@@ -147,15 +153,24 @@ public class TelegramShoppingService {
                     keyboard(List.of(List.of(callbackButton("⬅️ Categories", "shop:home")))));
             return;
         }
-        List<List<Map<String, String>>> rows = new ArrayList<>();
+        sendMessage(chatId, "Choose a product. Price and availability are checked again on the website.", null);
         for (Product p : matches) {
             String label = truncate(safe(p.name) + " — ₹"
                     + String.format(Locale.ROOT, "%.2f", p.price), 60);
-            rows.add(List.of(callbackButton(label, "prod:" + p.id)));
+            Map<String, Object> productKeyboard = keyboard(List.of(
+                    List.of(callbackButton(label, "prod:" + p.id))));
+            String imageUrl = productImage(p);
+            String caption = "🛍 " + safe(p.name) + "\\nPrice: ₹"
+                    + String.format(Locale.ROOT, "%.2f", p.price)
+                    + "\\nIn stock: " + p.stock;
+            if (!imageUrl.isBlank()) {
+                sendPhoto(chatId, imageUrl, caption, productKeyboard);
+            } else {
+                sendMessage(chatId, caption, productKeyboard);
+            }
         }
-        rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
-        sendMessage(chatId, "Choose a product. Price and availability are checked again on the website.",
-                keyboard(rows));
+        sendMessage(chatId, "Browse another category:",
+                keyboard(List.of(List.of(callbackButton("⬅️ Categories", "shop:home")))));
     }
 
     private void answerCallback(String callbackId, String text) {
@@ -171,10 +186,48 @@ public class TelegramShoppingService {
     private void sendMessage(String chatId, String text, Map<String, Object> keyboard) {
         if (token.isBlank() || chatId == null || chatId.isBlank()) return;
         try {
-            post("sendMessage", Map.of("chat_id", chatId,
-                    "text", truncate(text, 3900), "reply_markup", keyboard));
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("chat_id", chatId);
+            payload.put("text", truncate(text, 3900));
+            if (keyboard != null) payload.put("reply_markup", keyboard);
+            post("sendMessage", payload);
         } catch (Exception ex) {
             // Isolate Telegram errors from seller order notifications.
+        }
+    }
+
+    private void sendPhoto(String chatId, String photoUrl, String caption, Map<String, Object> keyboard) {
+        if (token.isBlank() || chatId == null || chatId.isBlank() || photoUrl == null || photoUrl.isBlank()) return;
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("chat_id", chatId);
+            payload.put("photo", photoUrl);
+            payload.put("caption", truncate(caption, 1000));
+            if (keyboard != null) payload.put("reply_markup", keyboard);
+            post("sendPhoto", payload);
+        } catch (Exception ex) {
+            // If Telegram cannot fetch an image URL, keep shopping usable with text fallback.
+            sendMessage(chatId, caption + "\\n(Image preview unavailable)", keyboard);
+        }
+    }
+
+    private String productImage(Product product) {
+        String candidate = product == null ? "" : safe(product.image);
+        if ((candidate.isBlank() || candidate.equalsIgnoreCase("null"))
+                && product != null && product.images != null && !product.images.isEmpty()) {
+            candidate = safe(product.images.get(0));
+        }
+        if (candidate.isBlank() || candidate.equalsIgnoreCase("null")) return "";
+        if (candidate.startsWith("//")) candidate = "https:" + candidate;
+        else if (candidate.startsWith("/") && !websiteUrl.isBlank()) candidate = websiteUrl + candidate;
+        try {
+            URI uri = URI.create(candidate);
+            String scheme = uri.getScheme();
+            return uri.isAbsolute() && scheme != null
+                    && (scheme.equalsIgnoreCase("https") || scheme.equalsIgnoreCase("http"))
+                    ? candidate : "";
+        } catch (IllegalArgumentException ex) {
+            return "";
         }
     }
 
