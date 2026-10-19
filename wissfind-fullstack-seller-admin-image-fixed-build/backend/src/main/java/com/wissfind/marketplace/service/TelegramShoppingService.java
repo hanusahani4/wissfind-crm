@@ -44,7 +44,7 @@ public class TelegramShoppingService {
     }
 
     public void showHome(String chatId) {
-        List<String> categories = products.findDistinctProductCategories()
+        List<String> categories = products.findDistinctLiveCategories(Product.Status.LIVE, 0)
                 .stream().filter(Objects::nonNull).map(String::trim)
                 .filter(s -> !s.isBlank()).distinct().toList();
 
@@ -86,7 +86,7 @@ public class TelegramShoppingService {
 
         if (data.startsWith("cat:")) {
             String categorySlug = data.substring(4);
-            String categoryName = products.findDistinctProductCategories().stream()
+            String categoryName = products.findDistinctLiveCategories(Product.Status.LIVE, 0).stream()
                     .filter(name -> slug(name).equals(categorySlug)).findFirst().orElse("");
             List<Product> matches = categoryName.isBlank() ? List.of()
                     : products.findByCategoryIgnoreCaseAndStatusAndStockGreaterThan(
