@@ -36,7 +36,7 @@ public class TelegramShoppingService {
             ProductRepository products,
             ObjectMapper mapper,
             @Value("${app.telegram.bot-token:}") String token,
-            @Value("${app.telegram.website-url:https://wissfind.com}") String websiteUrl) {
+            @Value("${app.telegram.website-url:}") String websiteUrl) {
         this.products = products;
         this.mapper = mapper;
         this.token = token == null ? "" : token.trim();
@@ -54,7 +54,7 @@ public class TelegramShoppingService {
         for (String category : categories) {
             rows.add(List.of(callbackButton(category, "cat:" + slug(category))));
         }
-        rows.add(List.of(urlButton("🛍 Browse all products", websiteUrl)));
+        if (!websiteUrl.isBlank()) rows.add(List.of(urlButton("🛍 Browse all products", websiteUrl)));
         String message = live.isEmpty()
                 ? "Welcome to WissFind Fashion 👋\n\nNo in-stock products are available right now. Visit our website to explore the store."
                 : "Welcome to WissFind Fashion 👋\n\nChoose a category or browse the full collection.";
@@ -119,10 +119,13 @@ public class TelegramShoppingService {
                     + "\nPrice: ₹" + String.format(Locale.ROOT, "%.2f", p.price)
                     + "\nIn stock: " + p.stock
                     + "\n\nView sizes/colours and complete checkout securely on WissFind.";
-            sendMessage(chatId, text, keyboard(List.of(
-                    List.of(urlButton("🛒 View & Buy on WissFind", websiteUrl + "/product/" + p.id)),
-                    List.of(callbackButton("⬅️ Categories", "shop:home"))
-            )));
+            List<List<Map<String, String>>> rows = new ArrayList<>();
+            if (!websiteUrl.isBlank()) {
+                rows.add(List.of(urlButton("🛒 View & Buy on WissFind", websiteUrl + "/product/" + p.id)));
+            }
+            rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
+            if (websiteUrl.isBlank()) text += "\\n\\nWebsite checkout is not configured yet. Please contact the store admin.";
+            sendMessage(chatId, text, keyboard(rows));
             return;
         }
 
@@ -204,7 +207,8 @@ public class TelegramShoppingService {
     }
 
     private String normalizeWebsiteUrl(String value) {
-        String url = value == null || value.isBlank() ? "https://wissfind.com" : value.trim();
+        if (value == null || value.isBlank()) return "";
+        String url = value.trim();
         if (!(url.startsWith("https://") || url.startsWith("http://localhost")
                 || url.startsWith("http://127.0.0.1"))) {
             throw new IllegalArgumentException("Telegram website URL must use HTTPS outside local development");
