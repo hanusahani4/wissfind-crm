@@ -47,6 +47,7 @@ public class TelegramNotificationService {
         this.users = users;
         this.orders = orders;
         this.mapper = mapper;
+        this.shopping = shopping;
         this.token = token == null ? "" : token.trim();
         this.username = username == null ? "" : username.trim().replaceFirst("^@", "");
     }
