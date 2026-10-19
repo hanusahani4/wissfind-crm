@@ -44,11 +44,9 @@ public class TelegramShoppingService {
     }
 
     public void showHome(String chatId) {
-        List<Product> live = liveProducts();
-        List<String> categories = live.stream()
-                .map(p -> p.category)
-                .filter(Objects::nonNull).map(String::trim)
-                .filter(s -> !s.isBlank()).distinct().limit(8).toList();
+        List<String> categories = products.findDistinctLiveCategories(Product.Status.LIVE, 0)
+                .stream().filter(Objects::nonNull).map(String::trim)
+                .filter(s -> !s.isBlank()).distinct().toList();
 
         List<List<Map<String, String>>> rows = new ArrayList<>();
         for (String category : categories) {
@@ -88,9 +86,11 @@ public class TelegramShoppingService {
 
         if (data.startsWith("cat:")) {
             String categorySlug = data.substring(4);
-            List<Product> matches = liveProducts().stream()
-                    .filter(p -> p.category != null && slug(p.category).equals(categorySlug))
-                    .limit(MAX_PRODUCTS).toList();
+            String categoryName = products.findDistinctLiveCategories(Product.Status.LIVE, 0).stream()
+                    .filter(name -> slug(name).equals(categorySlug)).findFirst().orElse("");
+            List<Product> matches = categoryName.isBlank() ? List.of()
+                    : products.findByCategoryIgnoreCaseAndStatusAndStockGreaterThan(
+                            categoryName, Product.Status.LIVE, 0).stream().limit(MAX_PRODUCTS).toList();
             answerCallback(callbackId, matches.isEmpty() ? "No products found" : "Products loaded");
             sendProductList(chatId, matches);
             return;
