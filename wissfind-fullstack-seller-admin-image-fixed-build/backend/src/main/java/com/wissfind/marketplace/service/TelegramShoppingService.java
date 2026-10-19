@@ -53,7 +53,7 @@ public class TelegramShoppingService {
             rows.add(List.of(callbackButton(category, "cat:" + slug(category))));
         }
         if (!websiteUrl.isBlank()) rows.add(List.of(urlButton("🛍 Browse all products", websiteUrl)));
-        String message = live.isEmpty()
+        String message = categories.isEmpty()
                 ? "Welcome to WissFind Fashion 👋\n\nNo in-stock products are available right now. Please check back later."
                 : (websiteUrl.isBlank()
                     ? "Welcome to WissFind Fashion 👋\n\nChoose a category below. Website checkout link is not configured yet."
