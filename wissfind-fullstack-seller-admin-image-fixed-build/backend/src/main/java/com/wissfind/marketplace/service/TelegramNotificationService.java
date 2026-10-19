@@ -41,6 +41,7 @@ public class TelegramNotificationService {
     private final Instant startedAt = Instant.now();
 
     public TelegramNotificationService(UserRepository users, OrderRepository orders, ObjectMapper mapper,
+                                       TelegramShoppingService shopping,
                                        @Value("${app.telegram.bot-token:}") String token,
                                        @Value("${app.telegram.bot-username:}") String username) {
         this.users = users;
