@@ -33,6 +33,7 @@ public class TelegramNotificationService {
     private final UserRepository users;
     private final OrderRepository orders;
     private final ObjectMapper mapper;
+    private final TelegramShoppingService shopping;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final String token;
     private final String username;
