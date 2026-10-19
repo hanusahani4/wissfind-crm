@@ -18,10 +18,9 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findBySellerIdOrderByCreatedAtDesc(Long sellerId);
     List<Product> findByCategoryIgnoreCaseAndStatusAndStockGreaterThan(String category, Product.Status status, int stock);
 
-    /** All distinct categories that currently have at least one live, in-stock product. */
-    @Query("select distinct p.category from Product p where p.status = :status and p.stock > :stock and p.category is not null and trim(p.category) <> '' order by p.category")
-    List<String> findDistinctLiveCategories(@Param("status") Product.Status status,
-                                            @Param("stock") int stock);
+    /** All categories present in product records, regardless of status or stock. */
+    @Query("select distinct p.category from Product p where p.category is not null and trim(p.category) <> '' order by p.category")
+    List<String> findDistinctProductCategories();
 
     /** Database-side filtering + pagination for the customer catalogue. */
     @Query("""
