@@ -52,7 +52,7 @@ app:
   telegram:
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     bot-username: ${TELEGRAM_BOT_USERNAME:}
-    website-url: ${TELEGRAM_WEBSITE_URL:https://wissfind.com}
+    website-url: ${TELEGRAM_WEBSITE_URL:}
     poll-ms: ${TELEGRAM_POLL_MS:3000}
     order-poll-ms: ${TELEGRAM_ORDER_POLL_MS:5000}
 
