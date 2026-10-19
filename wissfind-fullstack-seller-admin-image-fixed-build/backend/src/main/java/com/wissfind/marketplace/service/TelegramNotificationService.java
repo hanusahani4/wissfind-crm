@@ -33,6 +33,7 @@ public class TelegramNotificationService {
     private final UserRepository users;
     private final OrderRepository orders;
     private final ObjectMapper mapper;
+    private final TelegramShoppingService shopping;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final String token;
     private final String username;
@@ -40,11 +41,13 @@ public class TelegramNotificationService {
     private final Instant startedAt = Instant.now();
 
     public TelegramNotificationService(UserRepository users, OrderRepository orders, ObjectMapper mapper,
+                                       TelegramShoppingService shopping,
                                        @Value("${app.telegram.bot-token:}") String token,
                                        @Value("${app.telegram.bot-username:}") String username) {
         this.users = users;
         this.orders = orders;
         this.mapper = mapper;
+        this.shopping = shopping;
         this.token = token == null ? "" : token.trim();
         this.username = username == null ? "" : username.trim().replaceFirst("^@", "");
     }
@@ -99,7 +102,7 @@ public class TelegramNotificationService {
         if (token.isBlank()) return;
         try {
             String url = "https://api.telegram.org/bot" + token
-                    + "/getUpdates?timeout=1&allowed_updates=%5B%22message%22%5D&offset=" + updateOffset;
+                    + "/getUpdates?timeout=1&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D&offset=" + updateOffset;
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofSeconds(8))
                     .GET()
@@ -131,22 +134,34 @@ public class TelegramNotificationService {
     }
 
     private void handleUpdate(JsonNode update) {
+        JsonNode callback = update.path("callback_query");
+        if (!callback.isMissingNode() && !callback.isNull()) {
+            shopping.handleCallback(callback);
+            return;
+        }
+
         JsonNode message = update.path("message");
         if (message.isMissingNode()) return;
 
         String text = message.path("text").asText("").trim();
         if (text.isBlank()) return;
+        String chatId = message.path("chat").path("id").asText("");
+        if (chatId.isBlank()) return;
+
+        if (shopping.handleCommand(chatId, text)) return;
 
         Matcher matcher = START_COMMAND.matcher(text);
         if (!matcher.matches()) return;
 
         String payload = matcher.group(1) == null ? "" : matcher.group(1).trim();
-        String chatId = message.path("chat").path("id").asText("");
-        if (chatId.isBlank()) return;
+        if (payload.isBlank()) {
+            shopping.showHome(chatId);
+            log.info("Received shopping /start from Telegram chatId={}", chatId);
+            return;
+        }
 
         if (!payload.startsWith("connect_")) {
-            sendText(chatId, "Please use the Connect Telegram button from your WissFind seller dashboard to link this account.");
-            log.info("Received plain /start from Telegram chatId={} without a connection payload", chatId);
+            sendText(chatId, "Please use /shop to browse WissFind products, or use the Connect Telegram button from your seller dashboard.");
             return;
         }
 
