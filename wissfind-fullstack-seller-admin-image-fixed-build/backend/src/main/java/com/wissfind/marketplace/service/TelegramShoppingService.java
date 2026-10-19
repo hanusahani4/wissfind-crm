@@ -1,0 +1,236 @@
+package com.wissfind.marketplace.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wissfind.marketplace.entity.Product;
+import com.wissfind.marketplace.repo.ProductRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Product discovery for the existing WissFind Telegram bot.
+ *
+ * The existing TelegramNotificationService remains the only getUpdates poller.
+ * Checkout intentionally stays on the website so existing login, cart, shipping,
+ * COD and Razorpay validations remain authoritative.
+ */
+@Service
+public class TelegramShoppingService {
+    private static final int MAX_PRODUCTS = 10;
+    private final ProductRepository products;
+    private final ObjectMapper mapper;
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final String token;
+    private final String websiteUrl;
+
+    public TelegramShoppingService(
+            ProductRepository products,
+            ObjectMapper mapper,
+            @Value("${app.telegram.bot-token:}") String token,
+            @Value("${app.telegram.website-url:https://wissfind.com}") String websiteUrl) {
+        this.products = products;
+        this.mapper = mapper;
+        this.token = token == null ? "" : token.trim();
+        this.websiteUrl = normalizeWebsiteUrl(websiteUrl);
+    }
+
+    public void showHome(String chatId) {
+        List<Product> liveProducts = liveProducts();
+        List<String> categories = liveProducts.stream()
+                .map(p -> p.category)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .limit(8)
+                .toList();
+
+        List<List<Map<String, String>>> rows = new ArrayList<>();
+        for (String category : categories) {
+            rows.add(List.of(callbackButton(category, "cat:" + slug(category))));
+        }
+        rows.add(List.of(urlButton("🛍 Browse all products", websiteUrl)));
+        String message = liveProducts.isEmpty()
+                ? "Welcome to WissFind Fashion 👋\n\nNew products are coming soon. Visit our website to explore the store."
+                : "Welcome to WissFind Fashion 👋\n\nChoose a category below, or open the website to browse the full collection.";
+        sendMessage(chatId, message, keyboard(rows));
+    }
+
+    public boolean handleCommand(String chatId, String text) {
+        if (text == null) return false;
+        String command = text.trim().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
+        if (command.equals("/shop") || command.equals("/help")
+                || command.equals("/categories") || command.equals("/products")) {
+            showHome(chatId);
+            return true;
+        }
+        return false;
+    }
+
+    public void handleCallback(JsonNode callback) {
+        String callbackId = callback.path("id").asText("");
+        String data = callback.path("data").asText("");
+        String chatId = callback.path("message").path("chat").path("id").asText("");
+        if (callbackId.isBlank() || chatId.isBlank() || data.length() > 64) return;
+
+        if (data.equals("shop:home")) {
+            answerCallback(callbackId, "Opening categories");
+            showHome(chatId);
+            return;
+        }
+        if (data.startsWith("cat:")) {
+            String categorySlug = data.substring(4);
+            List<Product> matches = liveProducts().stream()
+                    .filter(p -> p.category != null && slug(p.category).equals(categorySlug))
+                    .limit(MAX_PRODUCTS).toList();
+            answerCallback(callbackId, matches.isEmpty() ? "No products found" : "Products loaded");
+            sendProductList(chatId, matches, categorySlug);
+            return;
+        }
+        if (data.startsWith("prod:")) {
+            long id;
+            try {
+                id = Long.parseLong(data.substring(5));
+            } catch (NumberFormatException ex) {
+                answerCallback(callbackId, "Invalid product");
+                return;
+            }
+            Optional<Product> found = products.findById(id).filter(p -> p.status == Product.Status.LIVE);
+            if (found.isEmpty()) {
+                answerCallback(callbackId, "Product is no longer available");
+                return;
+            }
+            Product p = found.get();
+            answerCallback(callbackId, "Opening product");
+            String price = p.price >= 0 ? String.format(Locale.ROOT, "%.2f", p.price) : "See website";
+            String description = "🛍 " + safe(p.name) + "\n"
+                    + (p.brand == null || p.brand.isBlank() ? "" : "Brand: " + safe(p.brand) + "\n")
+                    + "Price: ₹" + price + "\n"
+                    + "Availability: " + (p.stock > 0 ? "In stock" : "Currently out of stock") + "\n\n"
+                    + "Tap below to view sizes/colours and complete your purchase securely on WissFind.";
+            List<List<Map<String, String>>> rows = new ArrayList<>();
+            rows.add(List.of(urlButton("🛒 View & Buy on WissFind", websiteUrl + "/product/" + p.id)));
+            rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
+            sendMessage(chatId, description, keyboard(rows));
+            return;
+        }
+        answerCallback(callbackId, "Unknown action");
+    }
+
+    @Transactional(readOnly = true)
+    protected List<Product> liveProducts() {
+        return products.findLiveInStock(Product.Status.LIVE, 0, PageRequest.of(0, 50))
+                .getContent().stream()
+                .filter(p -> p.status == Product.Status.LIVE)
+                .toList();
+    }
+
+    private void sendProductList(String chatId, List<Product> matches, String categorySlug) {
+        if (matches.isEmpty()) {
+            sendMessage(chatId, "No live products were found in this category. Please check the website for the latest collection.",
+                    keyboard(List.of(List.of(callbackButton("⬅️ Categories", "shop:home")))));
+            return;
+        }
+        List<List<Map<String, String>>> rows = new ArrayList<>();
+        for (Product p : matches) {
+            String price = String.format(Locale.ROOT, "%.2f", p.price);
+            String label = truncate(safe(p.name) + " — ₹" + price, 60);
+            rows.add(List.of(callbackButton(label, "prod:" + p.id)));
+        }
+        rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
+        sendMessage(chatId, "Products in this collection (prices are checked again on the website):",
+                keyboard(rows));
+    }
+
+    private void answerCallback(String callbackId, String text) {
+        if (token.isBlank()) return;
+        try {
+            post("answerCallbackQuery", Map.of(
+                    "callback_query_id", callbackId,
+                    "text", truncate(text, 180)
+            ));
+        } catch (Exception ignored) {
+            // A callback may already have expired; do not interrupt the shopping flow.
+        }
+    }
+
+    private void sendMessage(String chatId, String text, Map<String, Object> keyboard) {
+        if (token.isBlank() || chatId == null || chatId.isBlank()) return;
+        try {
+            post("sendMessage", Map.of(
+                    "chat_id", chatId,
+                    "text", truncate(text, 3900),
+                    "reply_markup", keyboard
+            ));
+        } catch (Exception ex) {
+            // Keep Telegram API failures isolated from seller order notifications.
+        }
+    }
+
+    private void post(String method, Object payload) throws Exception {
+        String body = mapper.writeValueAsString(payload);
+        HttpRequest request = HttpRequest.newBuilder(
+                    URI.create("https://api.telegram.org/bot" + token + "/" + method))
+                .timeout(Duration.ofSeconds(8))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() / 100 != 2) {
+            throw new IllegalStateException("Telegram API HTTP " + response.statusCode());
+        }
+        JsonNode result = mapper.readTree(response.body());
+        if (!result.path("ok").asBoolean(false)) {
+            throw new IllegalStateException("Telegram API request failed");
+        }
+    }
+
+    private Map<String, Object> keyboard(List<List<Map<String, String>>> rows) {
+        return Map.of("inline_keyboard", rows);
+    }
+
+    private Map<String, String> callbackButton(String text, String data) {
+        return Map.of("text", truncate(text, 60), "callback_data", data);
+    }
+
+    private Map<String, String> urlButton(String text, String url) {
+        return Map.of("text", text, "url", url);
+    }
+
+    private String normalizeWebsiteUrl(String value) {
+        String url = value == null || value.isBlank() ? "https://wissfind.com" : value.trim();
+        if (!(url.startsWith("https://") || url.startsWith("http://localhost")
+                || url.startsWith("http://127.0.0.1"))) {
+            throw new IllegalArgumentException("Telegram website URL must use HTTPS outside local development");
+        }
+        while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
+        return url;
+    }
+
+    private String slug(String value) {
+        String slug = value == null ? "" : value.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        return truncate(slug, 45);
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.replaceAll("[\\r\\n\\t]", " ").trim();
+    }
+
+    private String truncate(String value, int max) {
+        if (value == null) return "";
+        return value.length() <= max ? value : value.substring(0, max - 1) + "…";
+    }
+}
