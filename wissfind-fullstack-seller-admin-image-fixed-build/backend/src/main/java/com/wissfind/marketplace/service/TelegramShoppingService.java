@@ -218,8 +218,9 @@ public class TelegramShoppingService {
     }
 
     private String slug(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT)
+        String valueSlug = value == null ? "" : value.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        return truncate(valueSlug, 45);
     }
 
     private String safe(String value) {
