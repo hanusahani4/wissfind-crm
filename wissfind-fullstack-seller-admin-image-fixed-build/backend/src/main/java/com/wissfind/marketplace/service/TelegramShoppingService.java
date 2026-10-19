@@ -56,8 +56,10 @@ public class TelegramShoppingService {
         }
         if (!websiteUrl.isBlank()) rows.add(List.of(urlButton("🛍 Browse all products", websiteUrl)));
         String message = live.isEmpty()
-                ? "Welcome to WissFind Fashion 👋\n\nNo in-stock products are available right now. Visit our website to explore the store."
-                : "Welcome to WissFind Fashion 👋\n\nChoose a category or browse the full collection.";
+                ? "Welcome to WissFind Fashion 👋\n\nNo in-stock products are available right now. Please check back later."
+                : (websiteUrl.isBlank()
+                    ? "Welcome to WissFind Fashion 👋\n\nChoose a category below. Website checkout link is not configured yet."
+                    : "Welcome to WissFind Fashion 👋\n\nChoose a category or browse the full collection.");
         sendMessage(chatId, message, keyboard(rows));
     }
 
