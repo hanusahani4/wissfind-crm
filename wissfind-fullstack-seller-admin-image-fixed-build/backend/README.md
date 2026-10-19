@@ -183,3 +183,12 @@ The backend uses Razorpay Standard Checkout. Set these environment variables bef
 The Angular app only receives the Key ID. The Key Secret is never sent to the browser. The backend creates the Razorpay Order and verifies the payment signature before marking an internal order `PAID`. COD is stored as `COD_PENDING`, so customers/sellers/admin can distinguish COD from online payment.
 
 For local testing use Razorpay Test Mode keys. For production, use HTTPS and configure the webhook endpoint `/api/payments/razorpay/webhook`.
+
+
+## Telegram shopping bot
+
+The existing Telegram polling service now also supports customer product discovery via `/start`, `/shop`, category buttons and product buttons. Checkout remains on the existing WissFind website so customer authentication, variants, shipping, COD and Razorpay verification are reused. Seller account linking and order notifications continue through the same poller.
+
+Set `TELEGRAM_WEBSITE_URL` to the **customer-facing storefront URL** (not the backend API URL). See [TELEGRAM_SHOPPING_BOT.md](TELEGRAM_SHOPPING_BOT.md) for setup, configuration, deployment constraints and smoke tests.
+
+Do not configure a Telegram webhook for this token while long polling is enabled. Run one polling instance until offsets and single-consumer processing are persisted.
