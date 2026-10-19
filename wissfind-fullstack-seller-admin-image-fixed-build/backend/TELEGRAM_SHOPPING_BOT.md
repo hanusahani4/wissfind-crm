@@ -19,7 +19,7 @@ Set these values in the backend environment or ignored local `.env` file:
 ```dotenv
 TELEGRAM_BOT_TOKEN=your_botfather_token
 TELEGRAM_BOT_USERNAME=your_bot_username_without_at
-TELEGRAM_WEBSITE_URL=https://your-canonical-storefront-domain
+TELEGRAM_WEBSITE_URL=https://your-real-storefront-domain
 TELEGRAM_POLL_MS=3000
 TELEGRAM_ORDER_POLL_MS=5000
 ```
