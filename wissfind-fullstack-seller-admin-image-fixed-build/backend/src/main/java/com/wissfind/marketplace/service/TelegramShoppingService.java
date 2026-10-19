@@ -126,7 +126,7 @@ public class TelegramShoppingService {
                 rows.add(List.of(urlButton("🛒 View & Buy on WissFind", websiteUrl + "/product/" + p.id)));
             }
             rows.add(List.of(callbackButton("⬅️ Categories", "shop:home")));
-            if (websiteUrl.isBlank()) text += "\\n\\nWebsite checkout is not configured yet. Please contact the store admin.";
+            if (websiteUrl.isBlank()) text += "\n\nWebsite checkout is not configured yet. Please contact the store admin.";
             sendMessage(chatId, text, keyboard(rows));
             return;
         }
